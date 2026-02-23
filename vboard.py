@@ -136,8 +136,8 @@ class VirtualKeyboard(Gtk.Window):
         self.add(grid)
         self.apply_css()
         self.device = Device(list(keys_dict.keys()))
+        self.button_keys = {}  # button -> uinput key mapping
 
-        # Restructured row layout using uinput constants
         function_row = [
             KEY_ESC, (KB_GAP, 1), KEY_F1, KEY_F2, KEY_F3, KEY_F4,
             (KB_GAP, 1), KEY_F5, KEY_F6, KEY_F7, KEY_F8,
@@ -264,7 +264,6 @@ class VirtualKeyboard(Gtk.Window):
         grid.attach(spacer, col, row_index, width, 1)
         return width
 
-    # create_row still uses old string-based logic — updated in commit 3
     def create_row(self, grid, row_index, row):
         col = 0
         for entry in row:
@@ -274,20 +273,21 @@ class VirtualKeyboard(Gtk.Window):
             elif isinstance(entry, tuple) and len(entry) == 2 and isinstance(entry[0], tuple):
                 key, width = entry
             else:
-                key, width = entry, 2
+                key, width = entry, 2  # default width
 
             button = Gtk.Button(label=keys_dict[key])
             button.connect("pressed", self.on_button_press, key)
             button.connect("released", self.on_button_release)
             button.connect("leave-notify-event", self.on_button_release)
             self.row_buttons.append(button)
+            self.button_keys[button] = key  # track button -> key mapping
             if key in self.modifiers:
                 self.modifier_buttons[key] = button
             grid.attach(button, col, row_index, width, 1)
             col += width
 
     def update_label(self, show_symbols):
-        # Still using old approach — updated in commit 4
+        # Placeholder — updated in commit 4
         pass
 
     def update_modifier(self, key_event, value):
