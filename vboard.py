@@ -5,6 +5,7 @@ import uinput
 import time
 import os
 import configparser
+import subprocess
 
 os.environ['GDK_BACKEND'] = 'x11'
 
@@ -99,6 +100,7 @@ class VirtualKeyboard(Gtk.Window):
             KEY_LEFTCTRL: False, KEY_RIGHTCTRL: False,
             KEY_LEFTALT: False, KEY_RIGHTALT: False,
             KEY_LEFTMETA: False, KEY_RIGHTMETA: False,
+            KEY_CAPSLOCK: False,  # added for visual tracking
         }
 
         self.colors = [
@@ -179,6 +181,11 @@ class VirtualKeyboard(Gtk.Window):
         for row_index, row in enumerate(rows):
             self.create_row(grid, row_index, row)
 
+        # Initialize CapsLock visual state after buttons exist
+        self.modifiers[KEY_CAPSLOCK] = self.get_capslock_state()
+        if self.modifiers[KEY_CAPSLOCK]:
+            self.modifier_buttons[KEY_CAPSLOCK].get_style_context().add_class('pressed')
+
     def create_settings(self):
         self.create_button("☰", self.change_visibility, callbacks=1)
         self.create_button("+", self.change_opacity, True, 2)
@@ -194,6 +201,10 @@ class VirtualKeyboard(Gtk.Window):
 
     def on_resize(self, widget, event):
         self.width, self.height = self.get_size()
+
+    def get_capslock_state(self):
+        output = subprocess.check_output("xset q", shell=True).decode()
+        return "Caps Lock:   on" in output
 
     def create_button(self, label_="", callback=None, callback2=None, callbacks=0):
         button = Gtk.Button(label=label_)
@@ -287,8 +298,6 @@ class VirtualKeyboard(Gtk.Window):
             col += width
 
     def update_label_shift(self, show_symbols):
-        # Rewritten to use button_keys and shift_dict — no hardcoded indices,
-        # numpad keys are naturally excluded since they're not in shift_dict
         for button in self.row_buttons:
             key = self.button_keys[button]
             if show_symbols and key in shift_dict:
@@ -305,7 +314,24 @@ class VirtualKeyboard(Gtk.Window):
         else:
             style_context.remove_class('pressed')
 
+    def sync_capslock(self):
+        state = self.get_capslock_state()
+        self.modifiers[KEY_CAPSLOCK] = state
+        style_context = self.modifier_buttons[KEY_CAPSLOCK].get_style_context()
+        if state:
+            style_context.add_class('pressed')
+        else:
+            style_context.remove_class('pressed')
+        return False  # don't repeat
+
     def on_button_press(self, widget, key_event):
+        # CapsLock: emit the key and sync visual state after a short delay
+        if key_event == KEY_CAPSLOCK:
+            self.device.emit(KEY_CAPSLOCK, 1)
+            self.device.emit(KEY_CAPSLOCK, 0)
+            GLib.timeout_add(50, self.sync_capslock)
+            return
+
         if key_event in self.modifiers:
             self.update_modifier(key_event, not self.modifiers[key_event])
             if self.modifiers[KEY_LEFTSHIFT] and self.modifiers[KEY_RIGHTSHIFT]:
@@ -337,13 +363,13 @@ class VirtualKeyboard(Gtk.Window):
 
     def emit_key(self, key_event):
         for mod_key, active in self.modifiers.items():
-            if active:
+            if active and mod_key != KEY_CAPSLOCK:  # exclude CapsLock from held modifiers
                 self.device.emit(mod_key, 1)
         self.device.emit(key_event, 1)
         self.device.emit(key_event, 0)
         self.update_label_shift(False)
         for mod_key, active in self.modifiers.items():
-            if active:
+            if active and mod_key != KEY_CAPSLOCK:
                 self.device.emit(mod_key, 0)
                 self.update_modifier(mod_key, False)
 
