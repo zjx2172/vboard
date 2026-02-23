@@ -24,13 +24,13 @@ keys_dict = {
 
     KEY_GRAVE: "`", KEY_1: "1", KEY_2: "2", KEY_3: "3", KEY_4: "4",
     KEY_5: "5", KEY_6: "6", KEY_7: "7", KEY_8: "8", KEY_9: "9",
-    KEY_0: "0", KEY_MINUS: "-", KEY_EQUAL: "=", KEY_BACKSPACE: "Backspace",
+    KEY_0: "0", KEY_MINUS: "-", KEY_EQUAL: "=", KEY_BACKSPACE: "⌫",
 
     KEY_TAB: "Tab", KEY_Q: "Q", KEY_W: "W", KEY_E: "E", KEY_R: "R",
     KEY_T: "T", KEY_Y: "Y", KEY_U: "U", KEY_I: "I", KEY_O: "O",
     KEY_P: "P", KEY_LEFTBRACE: "[", KEY_RIGHTBRACE: "]", KEY_BACKSLASH: "\\",
 
-    KEY_CAPSLOCK: "CapsLock", KEY_A: "A", KEY_S: "S", KEY_D: "D",
+    KEY_CAPSLOCK: "Caps", KEY_A: "A", KEY_S: "S", KEY_D: "D",
     KEY_F: "F", KEY_G: "G", KEY_H: "H", KEY_J: "J", KEY_K: "K",
     KEY_L: "L", KEY_SEMICOLON: ";", KEY_APOSTROPHE: "'", KEY_ENTER: "Enter",
 
@@ -48,11 +48,11 @@ keys_dict = {
     KEY_UP: "↑", KEY_LEFT: "←", KEY_DOWN: "↓", KEY_RIGHT: "→",
 
     KEY_NUMLOCK: "Num",
-    KEY_KP0: "KP0", KEY_KP1: "KP1", KEY_KP2: "KP2", KEY_KP3: "KP3",
-    KEY_KP4: "KP4", KEY_KP5: "KP5", KEY_KP6: "KP6", KEY_KP7: "KP7",
-    KEY_KP8: "KP8", KEY_KP9: "KP9",
+    KEY_KP0: "0", KEY_KP1: "1", KEY_KP2: "2", KEY_KP3: "3",
+    KEY_KP4: "4", KEY_KP5: "5", KEY_KP6: "6", KEY_KP7: "7",
+    KEY_KP8: "8", KEY_KP9: "9",
     KEY_KPPLUS: "+", KEY_KPMINUS: "-", KEY_KPASTERISK: "*",
-    KEY_KPSLASH: "/", KEY_KPDOT: ".", KEY_KPENTER: "Enter",
+    KEY_KPSLASH: "/", KEY_KPDOT: ".", KEY_KPENTER: "⏎",
 }
 
 shift_dict = {
@@ -95,14 +95,10 @@ class VirtualKeyboard(Gtk.Window):
         self.read_settings()
 
         self.modifiers = {
-            KEY_LEFTSHIFT: False,
-            KEY_RIGHTSHIFT: False,
-            KEY_LEFTCTRL: False,
-            KEY_RIGHTCTRL: False,
-            KEY_LEFTALT: False,
-            KEY_RIGHTALT: False,
-            KEY_LEFTMETA: False,
-            KEY_RIGHTMETA: False,
+            KEY_LEFTSHIFT: False, KEY_RIGHTSHIFT: False,
+            KEY_LEFTCTRL: False, KEY_RIGHTCTRL: False,
+            KEY_LEFTALT: False, KEY_RIGHTALT: False,
+            KEY_LEFTMETA: False, KEY_RIGHTMETA: False,
         }
 
         self.colors = [
@@ -141,17 +137,47 @@ class VirtualKeyboard(Gtk.Window):
         self.apply_css()
         self.device = Device(list(keys_dict.keys()))
 
-        # Original string-based rows — unchanged in this commit
-        rows = [
-            ["`", "1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "-", "=", "Backspace"],
-            ["Tab", "Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P", "[", "]", "\\"],
-            ["CapsLock", "A", "S", "D", "F", "G", "H", "J", "K", "L", ";", "'", "Enter"],
-            ["Shift", "Z", "X", "C", "V", "B", "N", "M", ",", ".", "/", "Shift", "↑"],
-            ["Ctrl", "OS", "Alt", "Space", "Alt", "OS", "Ctrl", "←", "→", "↓"]
+        # Restructured row layout using uinput constants
+        function_row = [
+            KEY_ESC, (KB_GAP, 1), KEY_F1, KEY_F2, KEY_F3, KEY_F4,
+            (KB_GAP, 1), KEY_F5, KEY_F6, KEY_F7, KEY_F8,
+            (KB_GAP, 1), KEY_F9, KEY_F10, KEY_F11, KEY_F12, (KB_GAP, 1)
         ]
 
-        for row_index, keys in enumerate(rows):
-            self.create_row(grid, row_index, keys)
+        navigation_rows = [
+            [KEY_SYSRQ, KEY_SCROLLLOCK, KEY_PAUSE],
+            [KEY_INSERT, KEY_HOME, KEY_PAGEUP],
+            [KEY_DELETE, KEY_END, KEY_PAGEDOWN],
+            [(KB_GAP, 6)],
+            [(KB_GAP, 2), KEY_UP, (KB_GAP, 2)],
+            [KEY_LEFT, KEY_DOWN, KEY_RIGHT],
+        ]
+
+        numpad_rows = [
+            [(KB_GAP, 8)],
+            [KEY_NUMLOCK, KEY_KPSLASH, KEY_KPASTERISK, KEY_KPMINUS],
+            [KEY_KP7, KEY_KP8, KEY_KP9, KEY_KPPLUS],
+            [KEY_KP4, KEY_KP5, KEY_KP6, (KB_GAP, 2)],
+            [KEY_KP1, KEY_KP2, KEY_KP3, (KB_GAP, 2)],
+            [(KEY_KP0, 4), KEY_KPDOT, KEY_KPENTER],
+        ]
+
+        base_rows = [
+            [KEY_GRAVE, KEY_1, KEY_2, KEY_3, KEY_4, KEY_5, KEY_6, KEY_7, KEY_8, KEY_9, KEY_0, KEY_MINUS, KEY_EQUAL, (KEY_BACKSPACE, 4)],
+            [(KEY_TAB, 3), KEY_Q, KEY_W, KEY_E, KEY_R, KEY_T, KEY_Y, KEY_U, KEY_I, KEY_O, KEY_P, KEY_LEFTBRACE, KEY_RIGHTBRACE, (KEY_BACKSLASH, 3)],
+            [(KEY_CAPSLOCK, 4), KEY_A, KEY_S, KEY_D, KEY_F, KEY_G, KEY_H, KEY_J, KEY_K, KEY_L, KEY_SEMICOLON, KEY_APOSTROPHE, (KEY_ENTER, 4)],
+            [(KEY_LEFTSHIFT, 5), KEY_Z, KEY_X, KEY_C, KEY_V, KEY_B, KEY_N, KEY_M, KEY_COMMA, KEY_DOT, KEY_SLASH, (KEY_RIGHTSHIFT, 5)],
+            [(KEY_LEFTCTRL, 3), (KEY_LEFTMETA, 3), (KEY_LEFTALT, 3), (KEY_SPACE, 12), (KEY_RIGHTALT, 3), (KEY_RIGHTMETA, 3), (KEY_RIGHTCTRL, 3)],
+        ]
+
+        rows = [function_row] + base_rows
+        for row_num in range(len(rows)):
+            rows[row_num] = rows[row_num] + [(KB_GAP, 1)] + navigation_rows[row_num]
+        for row_num in range(len(rows)):
+            rows[row_num] = rows[row_num] + [(KB_GAP, 1)] + numpad_rows[row_num]
+
+        for row_index, row in enumerate(rows):
+            self.create_row(grid, row_index, row)
 
     def create_settings(self):
         self.create_button("☰", self.change_visibility, callbacks=1)
@@ -214,9 +240,7 @@ class VirtualKeyboard(Gtk.Window):
             background-color: rgba({self.bg_color}, {self.opacity});
             border: 0px; box-shadow: none;
         }}
-        headerbar button {{
-            min-width: 40px; padding: 0px; border: 0px; margin: 0px;
-        }}
+        headerbar button {{ min-width: 10px; padding: 0px; border: 0px; margin: 0px; }}
         headerbar .titlebutton {{ min-width: 50px; min-height: 40px }}
         headerbar button label {{ color: {self.text_color}; }}
         #headbar-button, #combobox button.combo {{ background-image: none; }}
@@ -235,38 +259,36 @@ class VirtualKeyboard(Gtk.Window):
             print(f"CSS Error: {e.message}")
         Gtk.StyleContext.add_provider_for_screen(self.get_screen(), provider, Gtk.STYLE_PROVIDER_PRIORITY_USER)
 
-    def create_row(self, grid, row_index, keys):
+    def create_spacer(self, grid, col, row_index, width=1):
+        spacer = Gtk.Label(label="")
+        grid.attach(spacer, col, row_index, width, 1)
+        return width
+
+    # create_row still uses old string-based logic — updated in commit 3
+    def create_row(self, grid, row_index, row):
         col = 0
-        width = 0
-        for key_label in keys:
-            # Look up the uinput key by label
-            key_event = next((k for k, label in keys_dict.items() if label == key_label), None)
-            if key_event:
-                button = Gtk.Button(label=key_label)
-                button.connect("pressed", self.on_button_press, key_event)
-                button.connect("released", self.on_button_release)
-                button.connect("leave-notify-event", self.on_button_release)
-                self.row_buttons.append(button)
-                if key_event in self.modifiers:
-                    self.modifier_buttons[key_event] = button
-                if key_label == "Space": width = 12
-                elif key_label == "CapsLock": width = 3
-                elif key_label in ("Shift",): width = 4
-                elif key_label == "Backspace": width = 5
-                elif key_label == "`": width = 1
-                elif key_label == "\\": width = 4
-                elif key_label == "Enter": width = 5
-                else: width = 2
-                grid.attach(button, col, row_index, width, 1)
-                col += width
+        for entry in row:
+            if isinstance(entry, tuple) and len(entry) == 2 and entry[0] == KB_GAP:
+                col += self.create_spacer(grid, col, row_index, entry[1])
+                continue
+            elif isinstance(entry, tuple) and len(entry) == 2 and isinstance(entry[0], tuple):
+                key, width = entry
+            else:
+                key, width = entry, 2
+
+            button = Gtk.Button(label=keys_dict[key])
+            button.connect("pressed", self.on_button_press, key)
+            button.connect("released", self.on_button_release)
+            button.connect("leave-notify-event", self.on_button_release)
+            self.row_buttons.append(button)
+            if key in self.modifiers:
+                self.modifier_buttons[key] = button
+            grid.attach(button, col, row_index, width, 1)
+            col += width
 
     def update_label(self, show_symbols):
-        for button in self.row_buttons:
-            current = button.get_label()
-            if show_symbols and current in shift_dict.values():
-                pass  # placeholder — full implementation in commit 4
-            elif not show_symbols:
-                pass
+        # Still using old approach — updated in commit 4
+        pass
 
     def update_modifier(self, key_event, value):
         self.modifiers[key_event] = value
