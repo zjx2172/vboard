@@ -54,6 +54,7 @@ keys_dict = {
     KEY_KPSLASH: "/", KEY_KPDOT: ".", KEY_KPENTER: "⏎",
 }
 
+# Maps keys to their shifted symbols, used to update button labels when shift is active
 shift_dict = {
     KEY_GRAVE: "~", KEY_1: "!", KEY_2: "@", KEY_3: "#", KEY_4: "$",
     KEY_5: "%", KEY_6: "^", KEY_7: "&", KEY_8: "*", KEY_9: "(",
@@ -63,6 +64,7 @@ shift_dict = {
     KEY_COMMA: "<", KEY_DOT: ">", KEY_SLASH: "?"
 }
 
+# Maps numpad keys to their numlock-off labels
 numlock_dict = {
     KEY_KP0: "Del", KEY_KP1: "End", KEY_KP2: "⬇", KEY_KP3: "PgDn",
     KEY_KP4: "⬅", KEY_KP6: "➡", KEY_KP7: "Hm", KEY_KP8: "⬆",
@@ -88,7 +90,7 @@ class VirtualKeyboard(Gtk.Window):
         self.CONFIG_FILE = os.path.join(self.CONFIG_DIR, "settings.conf")
         self.config = configparser.ConfigParser()
 
-        self.bg_color = "0, 0, 0"
+        self.bg_color = "0, 0, 0"  # background color
         self.opacity = "0.90"
         self.text_color = "white"
         self.read_settings()
@@ -121,23 +123,26 @@ class VirtualKeyboard(Gtk.Window):
         self.modifier_buttons = {}
         self.row_buttons = []
         self.color_combobox = Gtk.ComboBoxText()
+        # Set the header bar as the titlebar of the window
         self.set_titlebar(self.header)
         self.set_default_icon_name("preferences-desktop-keyboard")
         self.header.set_decoration_layout(":minimize,maximize,close")
 
         self.create_settings()
 
+        # Use Grid for layout
         grid = Gtk.Grid()
-        grid.set_row_homogeneous(True)
-        grid.set_column_homogeneous(True)
+        grid.set_row_homogeneous(True)   # rows resize uniformly
+        grid.set_column_homogeneous(True)  # columns are equal width
         grid.set_margin_start(3)
         grid.set_margin_end(3)
         grid.set_name("grid")
         self.add(grid)
         self.apply_css()
         self.device = Device(list(keys_dict.keys()))
-        self.button_keys = {}
+        self.button_keys = {}  # maps button widget -> uinput key constant
 
+        # Define rows for keys
         function_row = [
             KEY_ESC, (KB_GAP, 1), KEY_F1, KEY_F2, KEY_F3, KEY_F4,
             (KB_GAP, 1), KEY_F5, KEY_F6, KEY_F7, KEY_F8,
@@ -176,9 +181,11 @@ class VirtualKeyboard(Gtk.Window):
         for row_num in range(len(rows)):
             rows[row_num] = rows[row_num] + [(KB_GAP, 1)] + numpad_rows[row_num]
 
+        # Create each row and add it to the grid
         for row_index, row in enumerate(rows):
             self.create_row(grid, row_index, row)
 
+        # Initialize CapsLock visual state after buttons exist
         self.modifiers[KEY_CAPSLOCK] = self.get_capslock_state()
         if self.modifiers[KEY_CAPSLOCK]:
             self.modifier_buttons[KEY_CAPSLOCK].get_style_context().add_class('pressed')
@@ -281,7 +288,7 @@ class VirtualKeyboard(Gtk.Window):
             elif isinstance(entry, tuple) and len(entry) == 2 and isinstance(entry[0], tuple):
                 key, width = entry
             else:
-                key, width = entry, 2
+                key, width = entry, 2  # default width
 
             button = Gtk.Button(label=keys_dict[key])
             button.connect("pressed", self.on_button_press, key)
@@ -319,29 +326,40 @@ class VirtualKeyboard(Gtk.Window):
             style_context.add_class('pressed')
         else:
             style_context.remove_class('pressed')
-        return False
+        return False  # don't repeat
 
     def on_button_press(self, widget, key_event):
+        # CapsLock toggles independently — emit and sync state after a short delay
         if key_event == KEY_CAPSLOCK:
             self.device.emit(KEY_CAPSLOCK, 1)
             self.device.emit(KEY_CAPSLOCK, 0)
             GLib.timeout_add(50, self.sync_capslock)
             return
 
+        # If it's a modifier, toggle state (like Shift, Ctrl, etc.)
         if key_event in self.modifiers:
             self.update_modifier(key_event, not self.modifiers[key_event])
+
+            # prevent both shifts being active at once
             if self.modifiers[KEY_LEFTSHIFT] and self.modifiers[KEY_RIGHTSHIFT]:
                 self.update_modifier(KEY_LEFTSHIFT, False)
                 self.update_modifier(KEY_RIGHTSHIFT, False)
+
+            # update label state (caps-like effect)
             if self.modifiers[KEY_LEFTSHIFT] or self.modifiers[KEY_RIGHTSHIFT]:
                 self.update_label_shift(True)
             else:
                 self.update_label_shift(False)
-            return
+            return  # modifiers don't repeat
+
+        # Fire key once immediately
         self.emit_key(key_event)
+
+        # Start a one-time delay before repeat kicks in (e.g. 400ms)
         self.delay_source = GLib.timeout_add(400, self.start_repeat, key_event)
 
     def on_button_release(self, widget, *args):
+        # Cancel both delay and repeat when released
         if hasattr(self, "delay_source"):
             GLib.source_remove(self.delay_source)
             del self.delay_source
@@ -350,26 +368,33 @@ class VirtualKeyboard(Gtk.Window):
             del self.repeat_source
 
     def start_repeat(self, key_event):
+        # After the delay, start the repeat loop
         self.repeat_source = GLib.timeout_add(100, self.repeat_key, key_event)
-        return False
+        return False  # stop this one-time delay timer
 
     def repeat_key(self, key_event):
         self.emit_key(key_event)
-        return True
+        return True  # keep repeating
 
     def emit_key(self, key_event):
+        # Apply active modifiers (excluding CapsLock which is handled separately)
         for mod_key, active in self.modifiers.items():
             if active and mod_key != KEY_CAPSLOCK:
                 self.device.emit(mod_key, 1)
+
+        # Emit the key
         self.device.emit(key_event, 1)
         self.device.emit(key_event, 0)
         self.update_label_shift(False)
+
+        # Release modifiers (so they only act as held while sending this key)
         for mod_key, active in self.modifiers.items():
             if active and mod_key != KEY_CAPSLOCK:
                 self.device.emit(mod_key, 0)
                 self.update_modifier(mod_key, False)
 
     def read_settings(self):
+        # Ensure the config directory exists
         try:
             os.makedirs(self.CONFIG_DIR, exist_ok=True)
         except PermissionError:
