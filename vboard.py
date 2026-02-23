@@ -136,7 +136,7 @@ class VirtualKeyboard(Gtk.Window):
         self.add(grid)
         self.apply_css()
         self.device = Device(list(keys_dict.keys()))
-        self.button_keys = {}  # button -> uinput key mapping
+        self.button_keys = {}
 
         function_row = [
             KEY_ESC, (KB_GAP, 1), KEY_F1, KEY_F2, KEY_F3, KEY_F4,
@@ -273,22 +273,28 @@ class VirtualKeyboard(Gtk.Window):
             elif isinstance(entry, tuple) and len(entry) == 2 and isinstance(entry[0], tuple):
                 key, width = entry
             else:
-                key, width = entry, 2  # default width
+                key, width = entry, 2
 
             button = Gtk.Button(label=keys_dict[key])
             button.connect("pressed", self.on_button_press, key)
             button.connect("released", self.on_button_release)
             button.connect("leave-notify-event", self.on_button_release)
             self.row_buttons.append(button)
-            self.button_keys[button] = key  # track button -> key mapping
+            self.button_keys[button] = key
             if key in self.modifiers:
                 self.modifier_buttons[key] = button
             grid.attach(button, col, row_index, width, 1)
             col += width
 
-    def update_label(self, show_symbols):
-        # Placeholder — updated in commit 4
-        pass
+    def update_label_shift(self, show_symbols):
+        # Rewritten to use button_keys and shift_dict — no hardcoded indices,
+        # numpad keys are naturally excluded since they're not in shift_dict
+        for button in self.row_buttons:
+            key = self.button_keys[button]
+            if show_symbols and key in shift_dict:
+                button.set_label(shift_dict[key])
+            elif not show_symbols and key in shift_dict:
+                button.set_label(keys_dict[key])
 
     def update_modifier(self, key_event, value):
         self.modifiers[key_event] = value
@@ -306,9 +312,9 @@ class VirtualKeyboard(Gtk.Window):
                 self.update_modifier(KEY_LEFTSHIFT, False)
                 self.update_modifier(KEY_RIGHTSHIFT, False)
             if self.modifiers[KEY_LEFTSHIFT] or self.modifiers[KEY_RIGHTSHIFT]:
-                self.update_label(True)
+                self.update_label_shift(True)
             else:
-                self.update_label(False)
+                self.update_label_shift(False)
             return
         self.emit_key(key_event)
         self.delay_source = GLib.timeout_add(400, self.start_repeat, key_event)
@@ -335,7 +341,7 @@ class VirtualKeyboard(Gtk.Window):
                 self.device.emit(mod_key, 1)
         self.device.emit(key_event, 1)
         self.device.emit(key_event, 0)
-        self.update_label(False)
+        self.update_label_shift(False)
         for mod_key, active in self.modifiers.items():
             if active:
                 self.device.emit(mod_key, 0)
