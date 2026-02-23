@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 
 import gi
-import uinput
-import time
 import os
 import configparser
 import subprocess
@@ -100,7 +98,7 @@ class VirtualKeyboard(Gtk.Window):
             KEY_LEFTCTRL: False, KEY_RIGHTCTRL: False,
             KEY_LEFTALT: False, KEY_RIGHTALT: False,
             KEY_LEFTMETA: False, KEY_RIGHTMETA: False,
-            KEY_CAPSLOCK: False,  # added for visual tracking
+            KEY_CAPSLOCK: False,
         }
 
         self.colors = [
@@ -181,7 +179,6 @@ class VirtualKeyboard(Gtk.Window):
         for row_index, row in enumerate(rows):
             self.create_row(grid, row_index, row)
 
-        # Initialize CapsLock visual state after buttons exist
         self.modifiers[KEY_CAPSLOCK] = self.get_capslock_state()
         if self.modifiers[KEY_CAPSLOCK]:
             self.modifier_buttons[KEY_CAPSLOCK].get_style_context().add_class('pressed')
@@ -322,10 +319,9 @@ class VirtualKeyboard(Gtk.Window):
             style_context.add_class('pressed')
         else:
             style_context.remove_class('pressed')
-        return False  # don't repeat
+        return False
 
     def on_button_press(self, widget, key_event):
-        # CapsLock: emit the key and sync visual state after a short delay
         if key_event == KEY_CAPSLOCK:
             self.device.emit(KEY_CAPSLOCK, 1)
             self.device.emit(KEY_CAPSLOCK, 0)
@@ -363,7 +359,7 @@ class VirtualKeyboard(Gtk.Window):
 
     def emit_key(self, key_event):
         for mod_key, active in self.modifiers.items():
-            if active and mod_key != KEY_CAPSLOCK:  # exclude CapsLock from held modifiers
+            if active and mod_key != KEY_CAPSLOCK:
                 self.device.emit(mod_key, 1)
         self.device.emit(key_event, 1)
         self.device.emit(key_event, 0)
