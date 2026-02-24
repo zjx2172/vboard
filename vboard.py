@@ -151,9 +151,9 @@ class VirtualKeyboard(Gtk.Window):
         ]
 
         navigation_rows = [
-            [KEY_SYSRQ, KEY_SCROLLLOCK, KEY_PAUSE],
-            [KEY_INSERT, KEY_HOME, KEY_PAGEUP],
-            [KEY_DELETE, KEY_END, KEY_PAGEDOWN],
+            [(KEY_SYSRQ, 2, True), (KEY_SCROLLLOCK, 2, True), (KEY_PAUSE, 2, True)],
+            [(KEY_INSERT, 2, True), (KEY_HOME, 2, True), (KEY_PAGEUP, 2, True)],
+            [(KEY_DELETE, 2, True), (KEY_END, 2, True), (KEY_PAGEDOWN, 2, True)],
             [(KB_GAP, 6)],
             [(KB_GAP, 2), KEY_UP, (KB_GAP, 2)],
             [KEY_LEFT, KEY_DOWN, KEY_RIGHT],
@@ -260,8 +260,15 @@ class VirtualKeyboard(Gtk.Window):
         self.opacity_btn.set_label(f"{self.opacity}")
         self.apply_css()
 
+    def get_default_font_size(self):
+        style = self.get_style_context()
+        font = style.get_font(Gtk.StateFlags.NORMAL)
+        return font.get_size() / 1024  # Pango uses 1024 units per point
+
     def apply_css(self):
         provider = Gtk.CssProvider()
+        default = self.get_default_font_size()
+        small = round(default * 0.8, 1)
         css = f"""
         headerbar {{
             background-color: rgba({self.bg_color}, {self.opacity});
@@ -279,6 +286,7 @@ class VirtualKeyboard(Gtk.Window):
         #grid button.pressed, #grid button.pressed:hover {{ border: 1px solid {self.text_color}; }}
         tooltip {{ color: white; padding: 5px; }}
         #combobox button.combo {{ color: {self.text_color}; padding: 5px; }}
+        #grid button.small-key label {{ font-size: {small}pt; }}
         """
         try:
             provider.load_from_data(css.encode("utf-8"))
@@ -297,12 +305,17 @@ class VirtualKeyboard(Gtk.Window):
             if isinstance(entry, tuple) and len(entry) == 2 and entry[0] == KB_GAP:
                 col += self.create_spacer(grid, col, row_index, entry[1])
                 continue
+            elif isinstance(entry, tuple) and len(entry) == 3:
+                key, width, small = entry
             elif isinstance(entry, tuple) and len(entry) == 2 and isinstance(entry[0], tuple):
                 key, width = entry
+                small = False
             else:
-                key, width = entry, 2  # default width
+                key, width, small = entry, 2, False
 
             button = Gtk.Button(label=keys_dict[key])
+            if small:
+                button.get_style_context().add_class('small-key')
             button.connect("pressed", self.on_button_press, key)
             button.connect("released", self.on_button_release)
             button.connect("leave-notify-event", self.on_button_release)
@@ -464,6 +477,8 @@ if __name__ == "__main__":
     win.connect("destroy", Gtk.main_quit)
     win.connect("destroy", lambda w: win.save_settings())
     win.show_all()
+    size = win.get_default_font_size()
+    print(f"Default font size: {size}pt")
     win.connect("configure-event", win.on_resize)
     win.change_visibility()
     Gtk.main()
