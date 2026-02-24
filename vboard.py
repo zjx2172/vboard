@@ -11,48 +11,55 @@ gi.require_version('Gtk', '3.0')
 from gi.repository import Gtk
 from gi.repository import GLib
 
-KB_GAP = -1  # sentinel value for gaps; safe because uinput keys are tuples, never ints
 
 from uinput import Device, KEY_ESC, KEY_F1, KEY_F2, KEY_F3, KEY_F4, KEY_F5, KEY_F6, KEY_F7, KEY_F8, KEY_F9, KEY_F10, KEY_F11, KEY_F12, KEY_GRAVE, KEY_1, KEY_2, KEY_3, KEY_4, KEY_5, KEY_6, KEY_7, KEY_8, KEY_9, KEY_0, KEY_MINUS, KEY_EQUAL, KEY_BACKSPACE, KEY_TAB, KEY_Q, KEY_W, KEY_E, KEY_R, KEY_T, KEY_Y, KEY_U, KEY_I, KEY_O, KEY_P, KEY_LEFTBRACE, KEY_RIGHTBRACE, KEY_BACKSLASH, KEY_CAPSLOCK, KEY_A, KEY_S, KEY_D, KEY_F, KEY_G, KEY_H, KEY_J, KEY_K, KEY_L, KEY_SEMICOLON, KEY_APOSTROPHE, KEY_ENTER, KEY_LEFTSHIFT, KEY_Z, KEY_X, KEY_C, KEY_V, KEY_B, KEY_N, KEY_M, KEY_COMMA, KEY_DOT, KEY_SLASH, KEY_RIGHTSHIFT, KEY_LEFTCTRL, KEY_LEFTMETA, KEY_LEFTALT, KEY_SPACE, KEY_RIGHTALT, KEY_RIGHTMETA, KEY_RIGHTCTRL, KEY_SYSRQ, KEY_SCROLLLOCK, KEY_PAUSE, KEY_INSERT, KEY_HOME, KEY_PAGEUP, KEY_DELETE, KEY_END, KEY_PAGEDOWN, KEY_UP, KEY_LEFT, KEY_DOWN, KEY_RIGHT, KEY_NUMLOCK, KEY_KP0, KEY_KP1, KEY_KP2, KEY_KP3, KEY_KP4, KEY_KP5, KEY_KP6, KEY_KP7, KEY_KP8, KEY_KP9, KEY_KPPLUS, KEY_KPMINUS, KEY_KPASTERISK, KEY_KPSLASH, KEY_KPDOT, KEY_KPENTER
 
-keys_dict = {
-    KEY_ESC: "Esc",
-    KEY_F1: "F1", KEY_F2: "F2", KEY_F3: "F3", KEY_F4: "F4",
-    KEY_F5: "F5", KEY_F6: "F6", KEY_F7: "F7", KEY_F8: "F8",
-    KEY_F9: "F9", KEY_F10: "F10", KEY_F11: "F11", KEY_F12: "F12",
+function_row = [
+    (KEY_ESC, "Esc"), 1, (KEY_F1, "F1"), (KEY_F2, "F2"), (KEY_F3, "F3"), (KEY_F4, "F4"),
+    1, (KEY_F5, "F5"), (KEY_F6, "F6"), (KEY_F7, "F7"), (KEY_F8, "F8"),
+    1, (KEY_F9, "F9"), (KEY_F10, "F10"), (KEY_F11, "F11"), (KEY_F12, "F12"), 1
+]
 
-    KEY_GRAVE: "`", KEY_1: "1", KEY_2: "2", KEY_3: "3", KEY_4: "4",
-    KEY_5: "5", KEY_6: "6", KEY_7: "7", KEY_8: "8", KEY_9: "9",
-    KEY_0: "0", KEY_MINUS: "-", KEY_EQUAL: "=", KEY_BACKSPACE: "Backspace",
+navigation_rows = [
+    [(KEY_SYSRQ, "PrtScr", 2, True), (KEY_SCROLLLOCK, "ScrLk", 2, True), (KEY_PAUSE, "Pause", 2, True)],
+    [(KEY_INSERT, "Ins", 2, True), (KEY_HOME, "Home", 2, True), (KEY_PAGEUP, "PgUp", 2, True)],
+    [(KEY_DELETE, "Del", 2, True), (KEY_END, "End", 2, True), (KEY_PAGEDOWN, "PgDn", 2, True)],
+    [6],
+    [2, (KEY_UP, "↑"), 2],
+    [(KEY_LEFT, "←"), (KEY_DOWN, "↓"), (KEY_RIGHT, "→")],
+]
 
-    KEY_TAB: "Tab", KEY_Q: "Q", KEY_W: "W", KEY_E: "E", KEY_R: "R",
-    KEY_T: "T", KEY_Y: "Y", KEY_U: "U", KEY_I: "I", KEY_O: "O",
-    KEY_P: "P", KEY_LEFTBRACE: "[", KEY_RIGHTBRACE: "]", KEY_BACKSLASH: "\\",
+numpad_rows = [
+    [8],
+    [(KEY_NUMLOCK, "Num"), (KEY_KPSLASH, "/"), (KEY_KPASTERISK, "*"), (KEY_KPMINUS, "-")],
+    [(KEY_KP7, "7"), (KEY_KP8, "8"), (KEY_KP9, "9"), (KEY_KPPLUS, "+")],
+    [(KEY_KP4, "4"), (KEY_KP5, "5"), (KEY_KP6, "6"), 2],
+    [(KEY_KP1, "1"), (KEY_KP2, "2"), (KEY_KP3, "3"), 2],
+    [(KEY_KP0, "0", 4), (KEY_KPDOT, "."), (KEY_KPENTER, "⏎")],
+]
 
-    KEY_CAPSLOCK: "Caps", KEY_A: "A", KEY_S: "S", KEY_D: "D",
-    KEY_F: "F", KEY_G: "G", KEY_H: "H", KEY_J: "J", KEY_K: "K",
-    KEY_L: "L", KEY_SEMICOLON: ";", KEY_APOSTROPHE: "'", KEY_ENTER: "Enter",
+base_rows = [
+    [(KEY_GRAVE, "`"), (KEY_1, "1"), (KEY_2, "2"), (KEY_3, "3"), (KEY_4, "4"),
+     (KEY_5, "5"), (KEY_6, "6"), (KEY_7, "7"), (KEY_8, "8"), (KEY_9, "9"),
+     (KEY_0, "0"), (KEY_MINUS, "-"), (KEY_EQUAL, "="), (KEY_BACKSPACE, "⌫", 4)],
 
-    KEY_LEFTSHIFT: "Shift", KEY_Z: "Z", KEY_X: "X", KEY_C: "C",
-    KEY_V: "V", KEY_B: "B", KEY_N: "N", KEY_M: "M",
-    KEY_COMMA: ",", KEY_DOT: ".", KEY_SLASH: "/", KEY_RIGHTSHIFT: "Shift",
+    [(KEY_TAB, "Tab", 3), (KEY_Q, "Q"), (KEY_W, "W"), (KEY_E, "E"), (KEY_R, "R"),
+     (KEY_T, "T"), (KEY_Y, "Y"), (KEY_U, "U"), (KEY_I, "I"), (KEY_O, "O"),
+     (KEY_P, "P"), (KEY_LEFTBRACE, "["), (KEY_RIGHTBRACE, "]"), (KEY_BACKSLASH, "\\", 3)],
 
-    KEY_LEFTCTRL: "Ctrl", KEY_LEFTMETA: "OS", KEY_LEFTALT: "Alt",
-    KEY_SPACE: "Space", KEY_RIGHTALT: "Alt", KEY_RIGHTMETA: "OS", KEY_RIGHTCTRL: "Ctrl",
+    [(KEY_CAPSLOCK, "Caps", 4), (KEY_A, "A"), (KEY_S, "S"), (KEY_D, "D"), (KEY_F, "F"),
+     (KEY_G, "G"), (KEY_H, "H"), (KEY_J, "J"), (KEY_K, "K"), (KEY_L, "L"),
+     (KEY_SEMICOLON, ";"), (KEY_APOSTROPHE, "'"), (KEY_ENTER, "Enter", 4)],
 
-    KEY_SYSRQ: "PrtScr", KEY_SCROLLLOCK: "ScrLk", KEY_PAUSE: "Pause",
+    [(KEY_LEFTSHIFT, "Shift", 5), (KEY_Z, "Z"), (KEY_X, "X"), (KEY_C, "C"), (KEY_V, "V"),
+     (KEY_B, "B"), (KEY_N, "N"), (KEY_M, "M"), (KEY_COMMA, ","), (KEY_DOT, "."),
+     (KEY_SLASH, "/"), (KEY_RIGHTSHIFT, "Shift", 5)],
 
-    KEY_INSERT: "Ins", KEY_HOME: "Home", KEY_PAGEUP: "PgUp",
-    KEY_DELETE: "Del", KEY_END: "End", KEY_PAGEDOWN: "PgDn",
-    KEY_UP: "↑", KEY_LEFT: "←", KEY_DOWN: "↓", KEY_RIGHT: "→",
+    [(KEY_LEFTCTRL, "Ctrl", 3), (KEY_LEFTMETA, "OS", 3), (KEY_LEFTALT, "Alt", 3),
+     (KEY_SPACE, "Space", 12), (KEY_RIGHTALT, "Alt", 3), (KEY_RIGHTMETA, "OS", 3),
+     (KEY_RIGHTCTRL, "Ctrl", 3)],
+]
 
-    KEY_NUMLOCK: "Num",
-    KEY_KP0: "0", KEY_KP1: "1", KEY_KP2: "2", KEY_KP3: "3",
-    KEY_KP4: "4", KEY_KP5: "5", KEY_KP6: "6", KEY_KP7: "7",
-    KEY_KP8: "8", KEY_KP9: "9",
-    KEY_KPPLUS: "+", KEY_KPMINUS: "-", KEY_KPASTERISK: "*",
-    KEY_KPSLASH: "/", KEY_KPDOT: ".", KEY_KPENTER: "⏎",
-}
 
 # Maps keys to their shifted symbols, used to update button labels when shift is active
 shift_dict = {
@@ -140,47 +147,26 @@ class VirtualKeyboard(Gtk.Window):
         grid.set_name("grid")
         self.add(grid)
         self.apply_css()
-        self.device = Device(list(keys_dict.keys()))
         self.button_keys = {}  # maps button widget -> uinput key constant
 
         # Define rows for keys
-        function_row = [
-            KEY_ESC, (KB_GAP, 1), KEY_F1, KEY_F2, KEY_F3, KEY_F4,
-            (KB_GAP, 1), KEY_F5, KEY_F6, KEY_F7, KEY_F8,
-            (KB_GAP, 1), KEY_F9, KEY_F10, KEY_F11, KEY_F12, (KB_GAP, 1)
-        ]
-
-        navigation_rows = [
-            [(KEY_SYSRQ, 2, True), (KEY_SCROLLLOCK, 2, True), (KEY_PAUSE, 2, True)],
-            [(KEY_INSERT, 2, True), (KEY_HOME, 2, True), (KEY_PAGEUP, 2, True)],
-            [(KEY_DELETE, 2, True), (KEY_END, 2, True), (KEY_PAGEDOWN, 2, True)],
-            [(KB_GAP, 6)],
-            [(KB_GAP, 2), KEY_UP, (KB_GAP, 2)],
-            [KEY_LEFT, KEY_DOWN, KEY_RIGHT],
-        ]
-
-        numpad_rows = [
-            [(KB_GAP, 8)],
-            [KEY_NUMLOCK, KEY_KPSLASH, KEY_KPASTERISK, KEY_KPMINUS],
-            [KEY_KP7, KEY_KP8, KEY_KP9, KEY_KPPLUS],
-            [KEY_KP4, KEY_KP5, KEY_KP6, (KB_GAP, 2)],
-            [KEY_KP1, KEY_KP2, KEY_KP3, (KB_GAP, 2)],
-            [(KEY_KP0, 4), KEY_KPDOT, KEY_KPENTER],
-        ]
-
-        base_rows = [
-            [KEY_GRAVE, KEY_1, KEY_2, KEY_3, KEY_4, KEY_5, KEY_6, KEY_7, KEY_8, KEY_9, KEY_0, KEY_MINUS, KEY_EQUAL, (KEY_BACKSPACE, 4)],
-            [(KEY_TAB, 3), KEY_Q, KEY_W, KEY_E, KEY_R, KEY_T, KEY_Y, KEY_U, KEY_I, KEY_O, KEY_P, KEY_LEFTBRACE, KEY_RIGHTBRACE, (KEY_BACKSLASH, 3)],
-            [(KEY_CAPSLOCK, 4), KEY_A, KEY_S, KEY_D, KEY_F, KEY_G, KEY_H, KEY_J, KEY_K, KEY_L, KEY_SEMICOLON, KEY_APOSTROPHE, (KEY_ENTER, 4)],
-            [(KEY_LEFTSHIFT, 5), KEY_Z, KEY_X, KEY_C, KEY_V, KEY_B, KEY_N, KEY_M, KEY_COMMA, KEY_DOT, KEY_SLASH, (KEY_RIGHTSHIFT, 5)],
-            [(KEY_LEFTCTRL, 3), (KEY_LEFTMETA, 3), (KEY_LEFTALT, 3), (KEY_SPACE, 12), (KEY_RIGHTALT, 3), (KEY_RIGHTMETA, 3), (KEY_RIGHTCTRL, 3)],
-        ]
 
         rows = [function_row] + base_rows
         for row_num in range(len(rows)):
-            rows[row_num] = rows[row_num] + [(KB_GAP, 1)] + navigation_rows[row_num]
+            rows[row_num] = rows[row_num] + [1] + navigation_rows[row_num]
         for row_num in range(len(rows)):
-            rows[row_num] = rows[row_num] + [(KB_GAP, 1)] + numpad_rows[row_num]
+            rows[row_num] = rows[row_num] + [1] + numpad_rows[row_num]
+
+
+        # build both at the same time from the rows
+        all_keys = set()
+        self.key_labels = {}  # key constant -> default label
+        for row in rows:
+            for entry in row:
+                if isinstance(entry, tuple):
+                    all_keys.add(entry[0])
+                    self.key_labels[entry[0]] = entry[1]
+        self.device = Device(all_keys)
 
         # Create each row and add it to the grid
         for row_index, row in enumerate(rows):
@@ -262,8 +248,8 @@ class VirtualKeyboard(Gtk.Window):
 
     def get_default_font_size(self):
         style = self.get_style_context()
-        font = style.get_font(Gtk.StateFlags.NORMAL)
-        return font.get_size() / 1024  # Pango uses 1024 units per point
+        font = style.get_property("font", Gtk.StateFlags.NORMAL)
+        return font.get_size() / 1024
 
     def apply_css(self):
         provider = Gtk.CssProvider()
@@ -304,18 +290,18 @@ class VirtualKeyboard(Gtk.Window):
     def create_row(self, grid, row_index, row):
         col = 0
         for entry in row:
-            if isinstance(entry, tuple) and len(entry) == 2 and entry[0] == KB_GAP:
-                col += self.create_spacer(grid, col, row_index, entry[1])
+            # plain int = gap
+            if isinstance(entry, int):
+                col += self.create_spacer(grid, col, row_index, entry)
                 continue
-            elif isinstance(entry, tuple) and len(entry) == 3:
-                key, width, small = entry
-            elif isinstance(entry, tuple) and len(entry) == 2 and isinstance(entry[0], tuple):
-                key, width = entry
-                small = False
-            else:
-                key, width, small = entry, 2, False
 
-            button = Gtk.Button(label=keys_dict[key])
+            # unpack tuple — label is always second element
+            key = entry[0]
+            label = entry[1]
+            width = entry[2] if len(entry) >= 3 else 2
+            small = entry[3] if len(entry) >= 4 else False
+
+            button = Gtk.Button(label=label)
             if small:
                 button.get_style_context().add_class('small-key')
             button.connect("pressed", self.on_button_press, key)
@@ -333,8 +319,8 @@ class VirtualKeyboard(Gtk.Window):
             key = self.button_keys[button]
             if show_symbols and key in shift_dict:
                 button.set_label(shift_dict[key])
-            elif not show_symbols and key in shift_dict:
-                button.set_label(keys_dict[key])
+            elif not show_symbols:
+                button.set_label(self.key_labels[key])
 
     def update_label_numlock(self, numlock_off):
         for button in self.row_buttons:
@@ -343,7 +329,7 @@ class VirtualKeyboard(Gtk.Window):
                 button.set_label(numlock_dict[key])
                 button.get_style_context().add_class('numlock-label')
             elif not numlock_off and key in numlock_dict:
-                button.set_label(keys_dict[key])
+                button.set_label(self.key_labels[key])
                 button.get_style_context().remove_class('numlock-label')
 
     def update_modifier(self, key_event, value):
@@ -483,7 +469,6 @@ if __name__ == "__main__":
     win.connect("destroy", lambda w: win.save_settings())
     win.show_all()
     size = win.get_default_font_size()
-    print(f"Default font size: {size}pt")
     win.connect("configure-event", win.on_resize)
     win.change_visibility()
     Gtk.main()
