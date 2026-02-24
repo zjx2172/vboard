@@ -67,7 +67,7 @@ shift_dict = {
 # Maps numpad keys to their numlock-off labels
 numlock_dict = {
     KEY_KP0: "Del", KEY_KP1: "End", KEY_KP2: "⬇", KEY_KP3: "PgDn",
-    KEY_KP4: "⬅", KEY_KP5: " ", KEY_KP6: "➡", KEY_KP7: "Hm", KEY_KP8: "⬆",
+    KEY_KP4: "⬅", KEY_KP5: " ", KEY_KP6: "➡", KEY_KP7: "Home", KEY_KP8: "⬆",
     KEY_KP9: "PgUp", KEY_KPDOT: "Ins"
 }
 
@@ -287,7 +287,9 @@ class VirtualKeyboard(Gtk.Window):
         tooltip {{ color: white; padding: 5px; }}
         #combobox button.combo {{ color: {self.text_color}; padding: 5px; }}
         #grid button.small-key label {{ font-size: {small}pt; }}
+        #grid button.numlock-label label {{ font-size: {small}pt; }}
         """
+
         try:
             provider.load_from_data(css.encode("utf-8"))
         except GLib.GError as e:
@@ -333,13 +335,16 @@ class VirtualKeyboard(Gtk.Window):
                 button.set_label(shift_dict[key])
             elif not show_symbols and key in shift_dict:
                 button.set_label(keys_dict[key])
-    def update_label_numlock(self, numlock_on):
+
+    def update_label_numlock(self, numlock_off):
         for button in self.row_buttons:
             key = self.button_keys[button]
-            if numlock_on and key in numlock_dict:
+            if numlock_off and key in numlock_dict:
                 button.set_label(numlock_dict[key])
-            elif not numlock_on and key in numlock_dict:
+                button.get_style_context().add_class('numlock-label')
+            elif not numlock_off and key in numlock_dict:
                 button.set_label(keys_dict[key])
+                button.get_style_context().remove_class('numlock-label')
 
     def update_modifier(self, key_event, value):
         self.modifiers[key_event] = value
