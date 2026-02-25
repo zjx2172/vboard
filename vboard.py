@@ -24,7 +24,7 @@ fn_rows = [
 ]
 
 sys_rows = [
-    [(KEY_SYSRQ, "PrtScr"), (KEY_SCROLLLOCK, "ScrLk"), (KEY_PAUSE, "Pause")],
+    [(KEY_SYSRQ, "PrtScr", 2), (KEY_SCROLLLOCK, "ScrLk", 2), (KEY_PAUSE, "Pause", 2)],
 ]
 
 fn_pad_rows = [
@@ -32,19 +32,19 @@ fn_pad_rows = [
 ]
 
 navigation_rows = [
-    [(KEY_INSERT, "Ins"), (KEY_HOME, "Home"), (KEY_PAGEUP, "PgUp")],
-    [(KEY_DELETE, "Del"), (KEY_END, "End"), (KEY_PAGEDOWN, "PgDn")],
+    [(KEY_INSERT, "Ins", 2), (KEY_HOME, "Home", 2), (KEY_PAGEUP, "PgUp", 2)],
+    [(KEY_DELETE, "Del", 2), (KEY_END, "End", 2), (KEY_PAGEDOWN, "PgDn", 2)],
     [6],
-    [2, (KEY_UP, "↑")],
+    [2, (KEY_UP, "↑"), 2],
     [(KEY_LEFT, "←"), (KEY_DOWN, "↓"), (KEY_RIGHT, "→")],
 ]
 
 numpad_rows = [
-    [(KEY_NUMLOCK, " Num "), (KEY_KPSLASH, "/"), (KEY_KPASTERISK, "*"), (KEY_KPMINUS, "-")],
-    [(KEY_KP7, "7"), (KEY_KP8, "8"), (KEY_KP9, "9"), (KEY_KPPLUS, "+")],
+    [(KEY_NUMLOCK, "Num"), (KEY_KPSLASH, "/"), (KEY_KPASTERISK, "*"), (KEY_KPMINUS, "-")],
+    [(KEY_KP7, "7"), (KEY_KP8, "8"), (KEY_KP9, "9"), (KEY_KPPLUS, "+", 2, 2)],
     [(KEY_KP4, "4"), (KEY_KP5, "5"), (KEY_KP6, "6")],
-    [(KEY_KP1, "1"), (KEY_KP2, "2"), (KEY_KP3, "3")],
-    [(KEY_KP0, "0", 4), (KEY_KPDOT, "."), (KEY_KPENTER, "⏎")],
+    [(KEY_KP1, "1"), (KEY_KP2, "2"), (KEY_KP3, "3"), (KEY_KPENTER, "⏎", 2, 2)],
+    [(KEY_KP0, "0", 4), (KEY_KPDOT, ".")],
 ]
 
 base_rows = [
@@ -374,6 +374,7 @@ class VirtualKeyboard(Gtk.Window):
             key = entry[0]
             label = entry[1]
             width = entry[2] if len(entry) >= 3 else 2
+            rowspan = entry[3] if len(entry) >= 4 else 1
             small = len(label) > 1  # use small font for multi-character labels
 
             button = Gtk.Button(label=label)
@@ -386,7 +387,7 @@ class VirtualKeyboard(Gtk.Window):
             self.button_keys[button] = key
             if key in self.modifiers:
                 self.modifier_buttons[key] = button
-            grid.attach(button, col, row_index, width, 1)
+            grid.attach(button, col, row_index, width, rowspan)
             col += width
 
     def update_label_shift(self, show_symbols):
