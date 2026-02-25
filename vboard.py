@@ -15,9 +15,9 @@ from gi.repository import GLib
 from uinput import Device, KEY_ESC, KEY_F1, KEY_F2, KEY_F3, KEY_F4, KEY_F5, KEY_F6, KEY_F7, KEY_F8, KEY_F9, KEY_F10, KEY_F11, KEY_F12, KEY_GRAVE, KEY_1, KEY_2, KEY_3, KEY_4, KEY_5, KEY_6, KEY_7, KEY_8, KEY_9, KEY_0, KEY_MINUS, KEY_EQUAL, KEY_BACKSPACE, KEY_TAB, KEY_Q, KEY_W, KEY_E, KEY_R, KEY_T, KEY_Y, KEY_U, KEY_I, KEY_O, KEY_P, KEY_LEFTBRACE, KEY_RIGHTBRACE, KEY_BACKSLASH, KEY_CAPSLOCK, KEY_A, KEY_S, KEY_D, KEY_F, KEY_G, KEY_H, KEY_J, KEY_K, KEY_L, KEY_SEMICOLON, KEY_APOSTROPHE, KEY_ENTER, KEY_LEFTSHIFT, KEY_Z, KEY_X, KEY_C, KEY_V, KEY_B, KEY_N, KEY_M, KEY_COMMA, KEY_DOT, KEY_SLASH, KEY_RIGHTSHIFT, KEY_LEFTCTRL, KEY_LEFTMETA, KEY_LEFTALT, KEY_SPACE, KEY_RIGHTALT, KEY_RIGHTMETA, KEY_RIGHTCTRL, KEY_SYSRQ, KEY_SCROLLLOCK, KEY_PAUSE, KEY_INSERT, KEY_HOME, KEY_PAGEUP, KEY_DELETE, KEY_END, KEY_PAGEDOWN, KEY_UP, KEY_LEFT, KEY_DOWN, KEY_RIGHT, KEY_NUMLOCK, KEY_KP0, KEY_KP1, KEY_KP2, KEY_KP3, KEY_KP4, KEY_KP5, KEY_KP6, KEY_KP7, KEY_KP8, KEY_KP9, KEY_KPPLUS, KEY_KPMINUS, KEY_KPASTERISK, KEY_KPSLASH, KEY_KPDOT, KEY_KPENTER
 
 function_row = [
-    (KEY_ESC, "Esc"), 1, (KEY_F1, "F1"), (KEY_F2, "F2"), (KEY_F3, "F3"), (KEY_F4, "F4"),
+    (KEY_ESC, "Esc"), 2, (KEY_F1, "F1"), (KEY_F2, "F2"), (KEY_F3, "F3"), (KEY_F4, "F4"),
     1, (KEY_F5, "F5"), (KEY_F6, "F6"), (KEY_F7, "F7"), (KEY_F8, "F8"),
-    1, (KEY_F9, "F9"), (KEY_F10, "F10"), (KEY_F11, "F11"), (KEY_F12, "F12"), 1
+    1, (KEY_F9, "F9"), (KEY_F10, "F10"), (KEY_F11, "F11"), (KEY_F12, "F12")
 ]
 
 navigation_rows = [
@@ -99,7 +99,8 @@ class VirtualKeyboard(Gtk.Window):
 
         self.bg_color = "0, 0, 0"  # background color
         self.opacity = "0.90"
-        self.text_color = "white"
+        self.text_color = self.get_text_color(self.bg_color)
+        self.outline_color = self.get_outline_color(self.bg_color)
         self.read_settings()
 
         self.modifiers = {
@@ -149,13 +150,10 @@ class VirtualKeyboard(Gtk.Window):
         self.apply_css()
         self.button_keys = {}  # maps button widget -> uinput key constant
 
-        # Define rows for keys
-
-        rows = [function_row] + base_rows
-        for row_num in range(len(rows)):
-            rows[row_num] = rows[row_num] + [1] + navigation_rows[row_num]
-        for row_num in range(len(rows)):
-            rows[row_num] = rows[row_num] + [1] + numpad_rows[row_num]
+        rows = [function_row + [1] + navigation_rows[0] + [1] + numpad_rows[0]]
+        rows.append([])  # spacer
+        for i in range(len(base_rows)):
+            rows.append(base_rows[i] + [1] + navigation_rows[i + 1] + [1] + numpad_rows[i + 1])
 
 
         # build both at the same time from the rows
@@ -232,10 +230,8 @@ class VirtualKeyboard(Gtk.Window):
         for label_, color_ in self.colors:
             if label_ == label:
                 self.bg_color = color_
-        if self.bg_color in {"255,255,255", "0,255,0", "255,255,0", "245,245,220", "230,230,250", "255,215,0"}:
-            self.text_color = "#1C1C1C"
-        else:
-            self.text_color = "white"
+        self.text_color = self.get_text_color(self.bg_color)
+        self.outline_color = self.get_outline_color(self.bg_color)
         self.apply_css()
 
     def change_opacity(self, widget, boolean):
@@ -250,6 +246,25 @@ class VirtualKeyboard(Gtk.Window):
         style = self.get_style_context()
         font = style.get_property("font", Gtk.StateFlags.NORMAL)
         return font.get_size() / 1024
+
+    def get_text_color(self, rgb_string):
+        r, g, b = [int(x) for x in rgb_string.split(",")]
+        # standard luminance formula
+        luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
+        return "#1C1C1C" if luminance > 0.5 else "white"
+
+    def get_outline_color_2(self, rgb_string):
+        r, g, b = [int(x) for x in rgb_string.split(",")]
+        # standard luminance formula
+        luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
+        return "#C0C0C0" if luminance > 0.5 else "#404040"
+
+    def get_outline_color(self, rgb_string):
+        r, g, b = [int(x) for x in rgb_string.split(",")]
+        gray = int(0.299 * r + 0.587 * g + 0.114 * b)
+        outline = (gray + 0x40) % 256
+        return f"#{outline:02x}{outline:02x}{outline:02x}"
+
 
     def apply_css(self):
         provider = Gtk.CssProvider()
@@ -266,14 +281,17 @@ class VirtualKeyboard(Gtk.Window):
         #headbar-button, #combobox button.combo {{ background-image: none; }}
         #toplevel {{ background-color: rgba({self.bg_color}, {self.opacity}); }}
         #grid button label {{ color: {self.text_color}; }}
-        #grid button {{ border: none; background-image: none; padding: 0px; margin: 0px; }}
+        #grid button {{ border: 1px solid {self.outline_color}; background-image: none; padding: 0px; margin: 0px; }}
         button {{ background-color: transparent; color: {self.text_color}; }}
         #grid button:hover {{ border: 1px solid #00CACB; }}
         #grid button.pressed, #grid button.pressed:hover {{ border: 1px solid {self.text_color}; }}
+        #grid button:active {{ background-color: {self.text_color}; }}
+        #grid button:active label {{ color: rgba({self.bg_color}, {self.opacity}); }}
         tooltip {{ color: white; padding: 5px; }}
         #combobox button.combo {{ color: {self.text_color}; padding: 5px; }}
         #grid button.small-key label {{ font-size: {small}pt; }}
         #grid button.numlock-label label {{ font-size: {small}pt; }}
+        #row-spacer {{ min-height: 19px; }}
         """
 
         try:
@@ -288,6 +306,12 @@ class VirtualKeyboard(Gtk.Window):
         return width
 
     def create_row(self, grid, row_index, row):
+        if not row:
+            spacer = Gtk.Label(label="")
+            spacer.set_name("row-spacer")
+            grid.attach(spacer, 0, row_index, 4, 1)
+            return
+
         col = 0
         for entry in row:
             # plain int = gap
