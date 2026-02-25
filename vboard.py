@@ -13,14 +13,25 @@ from gi.repository import GLib
 
 from uinput import Device, KEY_ESC, KEY_F1, KEY_F2, KEY_F3, KEY_F4, KEY_F5, KEY_F6, KEY_F7, KEY_F8, KEY_F9, KEY_F10, KEY_F11, KEY_F12, KEY_GRAVE, KEY_1, KEY_2, KEY_3, KEY_4, KEY_5, KEY_6, KEY_7, KEY_8, KEY_9, KEY_0, KEY_MINUS, KEY_EQUAL, KEY_BACKSPACE, KEY_TAB, KEY_Q, KEY_W, KEY_E, KEY_R, KEY_T, KEY_Y, KEY_U, KEY_I, KEY_O, KEY_P, KEY_LEFTBRACE, KEY_RIGHTBRACE, KEY_BACKSLASH, KEY_CAPSLOCK, KEY_A, KEY_S, KEY_D, KEY_F, KEY_G, KEY_H, KEY_J, KEY_K, KEY_L, KEY_SEMICOLON, KEY_APOSTROPHE, KEY_ENTER, KEY_LEFTSHIFT, KEY_Z, KEY_X, KEY_C, KEY_V, KEY_B, KEY_N, KEY_M, KEY_COMMA, KEY_DOT, KEY_SLASH, KEY_RIGHTSHIFT, KEY_LEFTCTRL, KEY_LEFTMETA, KEY_LEFTALT, KEY_SPACE, KEY_RIGHTALT, KEY_RIGHTMETA, KEY_RIGHTCTRL, KEY_SYSRQ, KEY_SCROLLLOCK, KEY_PAUSE, KEY_INSERT, KEY_HOME, KEY_PAGEUP, KEY_DELETE, KEY_END, KEY_PAGEDOWN, KEY_UP, KEY_LEFT, KEY_DOWN, KEY_RIGHT, KEY_NUMLOCK, KEY_KP0, KEY_KP1, KEY_KP2, KEY_KP3, KEY_KP4, KEY_KP5, KEY_KP6, KEY_KP7, KEY_KP8, KEY_KP9, KEY_KPPLUS, KEY_KPMINUS, KEY_KPASTERISK, KEY_KPSLASH, KEY_KPDOT, KEY_KPENTER
 
-function_row = [
-    (KEY_ESC, "Esc"), 2, (KEY_F1, "F1"), (KEY_F2, "F2"), (KEY_F3, "F3"), (KEY_F4, "F4"),
-    1, (KEY_F5, "F5"), (KEY_F6, "F6"), (KEY_F7, "F7"), (KEY_F8, "F8"),
-    1, (KEY_F9, "F9"), (KEY_F10, "F10"), (KEY_F11, "F11"), (KEY_F12, "F12")
+# Gap sizes in pixels
+VBOX_SPACING = 12   # gap between top and bottom hboxes
+HBOX_SPACING = 16  # gap between grids within each hbox
+
+fn_rows = [
+    [(KEY_ESC, "Esc"), 1, (KEY_F1, "F1"), (KEY_F2, "F2"), (KEY_F3, "F3"), (KEY_F4, "F4"),
+     1, (KEY_F5, "F5"), (KEY_F6, "F6"), (KEY_F7, "F7"), (KEY_F8, "F8"),
+     1, (KEY_F9, "F9"), (KEY_F10, "F10"), (KEY_F11, "F11"), (KEY_F12, "F12")],
+]
+
+sys_rows = [
+    [(KEY_SYSRQ, "PrtScr", 2, True), (KEY_SCROLLLOCK, "ScrLk", 2, True), (KEY_PAUSE, "Pause", 2, True)],
+]
+
+fn_pad_rows = [
+    [8],  # empty row matching numpad width (4 buttons x width 2)
 ]
 
 navigation_rows = [
-    [(KEY_SYSRQ, "PrtScr", 2, True), (KEY_SCROLLLOCK, "ScrLk", 2, True), (KEY_PAUSE, "Pause", 2, True)],
     [(KEY_INSERT, "Ins", 2, True), (KEY_HOME, "Home", 2, True), (KEY_PAGEUP, "PgUp", 2, True)],
     [(KEY_DELETE, "Del", 2, True), (KEY_END, "End", 2, True), (KEY_PAGEDOWN, "PgDn", 2, True)],
     [6],
@@ -29,7 +40,6 @@ navigation_rows = [
 ]
 
 numpad_rows = [
-    [8],
     [(KEY_NUMLOCK, "Num"), (KEY_KPSLASH, "/"), (KEY_KPASTERISK, "*"), (KEY_KPMINUS, "-")],
     [(KEY_KP7, "7"), (KEY_KP8, "8"), (KEY_KP9, "9"), (KEY_KPPLUS, "+")],
     [(KEY_KP4, "4"), (KEY_KP5, "5"), (KEY_KP6, "6"), 2],
@@ -137,35 +147,95 @@ class VirtualKeyboard(Gtk.Window):
 
         self.create_settings()
 
-        # Use Grid for layout
-        grid = Gtk.Grid()
-        grid.set_row_homogeneous(True)    # rows resize uniformly
-        grid.set_column_homogeneous(True)  # columns are equal width
-        grid.set_margin_start(3)
-        grid.set_margin_end(3)
-        grid.set_name("grid")
-        self.add(grid)
         self.apply_css()
         self.button_keys = {}  # maps button widget -> uinput key constant
 
-        # Define rows for keys
-        rows = [function_row + [1] + navigation_rows[0] + [1] + numpad_rows[0]]
-        for i in range(len(base_rows)):
-            rows.append(base_rows[i] + [1] + navigation_rows[i + 1] + [1] + numpad_rows[i + 1])
+        def make_grid():
+            g = Gtk.Grid()
+            g.set_row_homogeneous(True)    # rows resize uniformly
+            g.set_column_homogeneous(True)  # columns are equal width
+            g.set_name("grid")
+            return g
 
-        # build key_labels and all_keys from rows
+        # Top hbox: function row | sys keys | numpad-width spacer
+        grid_fn  = make_grid()
+        grid_sys = make_grid()
+        grid_fn_pad = make_grid()  # empty placeholder matching numpad width
+
+        # Main hbox: base rows | nav cluster | numpad
+        grid_main = make_grid()
+        grid_nav  = make_grid()
+        grid_num  = make_grid()
+
+        hbox_top  = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=HBOX_SPACING)
+        hbox_main = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=HBOX_SPACING)
+        vbox      = Gtk.Box(orientation=Gtk.Orientation.VERTICAL,   spacing=VBOX_SPACING)
+
+        hbox_top.pack_start(grid_fn,     True,  True,  0)
+        hbox_top.pack_start(grid_sys,    False, False, 0)
+        hbox_top.pack_start(grid_fn_pad, False, False, 0)
+
+        hbox_main.pack_start(grid_main, True,  True,  0)
+        hbox_main.pack_start(grid_nav,  False, False, 0)
+        hbox_main.pack_start(grid_num,  False, False, 0)
+
+        vbox.pack_start(hbox_top,  False, False, 0)
+        vbox.pack_start(hbox_main, True,  True,  0)
+        self.add(vbox)
+
+        # Collect all rows for key_labels/all_keys building
+        all_row_groups = [fn_rows, sys_rows, base_rows, navigation_rows, numpad_rows]
         all_keys = set()
         self.key_labels = {}  # key constant -> default label
-        for row in rows:
-            for entry in row:
-                if isinstance(entry, tuple):
-                    all_keys.add(entry[0])
-                    self.key_labels[entry[0]] = entry[1]
+        for group in all_row_groups:
+            for row in group:
+                for entry in row:
+                    if isinstance(entry, tuple):
+                        all_keys.add(entry[0])
+                        self.key_labels[entry[0]] = entry[1]
         self.device = Device(all_keys)
 
-        # Create each row and add it to the grid
-        for row_index, row in enumerate(rows):
-            self.create_row(grid, row_index, row)
+        # Populate grids, saving reference buttons for SizeGroup
+        i = len(self.row_buttons)
+        for row_index, row in enumerate(fn_rows):
+            self.create_row(grid_fn, row_index, row)
+        ref_fn = self.row_buttons[i]
+
+        i = len(self.row_buttons)
+        for row_index, row in enumerate(sys_rows):
+            self.create_row(grid_sys, row_index, row)
+        ref_sys = self.row_buttons[i]
+
+        for row_index, row in enumerate(fn_pad_rows):
+            self.create_row(grid_fn_pad, row_index, row)
+
+        i = len(self.row_buttons)
+        for row_index, row in enumerate(base_rows):
+            self.create_row(grid_main, row_index, row)
+        ref_main = self.row_buttons[i]
+
+        i = len(self.row_buttons)
+        for row_index, row in enumerate(navigation_rows):
+            self.create_row(grid_nav, row_index, row)
+        ref_nav = self.row_buttons[i]
+
+        i = len(self.row_buttons)
+        for row_index, row in enumerate(numpad_rows):
+            self.create_row(grid_num, row_index, row)
+        ref_num = self.row_buttons[i]
+
+        # Synchronize column widths: fn<->main, sys<->nav, num<->fn_pad(grid level)
+        sg_main = Gtk.SizeGroup(mode=Gtk.SizeGroupMode.HORIZONTAL)
+        sg_main.add_widget(ref_fn)
+        sg_main.add_widget(ref_main)
+
+        sg_side = Gtk.SizeGroup(mode=Gtk.SizeGroupMode.HORIZONTAL)
+        sg_side.add_widget(ref_sys)
+        sg_side.add_widget(ref_nav)
+
+        sg_pad = Gtk.SizeGroup(mode=Gtk.SizeGroupMode.HORIZONTAL)
+        sg_pad.add_widget(grid_fn_pad)
+        sg_pad.add_widget(grid_num)
 
         # Initialize CapsLock & Numlock visual state after buttons exist
         self.modifiers[KEY_CAPSLOCK] = self.get_capslock_state()
