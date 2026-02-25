@@ -15,16 +15,16 @@ from uinput import Device, KEY_ESC, KEY_F1, KEY_F2, KEY_F3, KEY_F4, KEY_F5, KEY_
 
 # Gap sizes in pixels
 VBOX_SPACING = 12   # gap between top and bottom hboxes
-HBOX_SPACING = 16  # gap between grids within each hbox
+HBOX_SPACING = 16   # gap between grids within each hbox
 
 fn_rows = [
-    [(KEY_ESC, "Esc"), 1, (KEY_F1, "F1"), (KEY_F2, "F2"), (KEY_F3, "F3"), (KEY_F4, "F4"),
+    [(KEY_ESC, "Esc"), 2, (KEY_F1, "F1"), (KEY_F2, "F2"), (KEY_F3, "F3"), (KEY_F4, "F4"),
      1, (KEY_F5, "F5"), (KEY_F6, "F6"), (KEY_F7, "F7"), (KEY_F8, "F8"),
      1, (KEY_F9, "F9"), (KEY_F10, "F10"), (KEY_F11, "F11"), (KEY_F12, "F12")],
 ]
 
 sys_rows = [
-    [(KEY_SYSRQ, "PrtScr", 2, True), (KEY_SCROLLLOCK, "ScrLk", 2, True), (KEY_PAUSE, "Pause", 2, True)],
+    [(KEY_SYSRQ, "PrtScr"), (KEY_SCROLLLOCK, "ScrLk"), (KEY_PAUSE, "Pause")],
 ]
 
 fn_pad_rows = [
@@ -32,18 +32,18 @@ fn_pad_rows = [
 ]
 
 navigation_rows = [
-    [(KEY_INSERT, "Ins", 2, True), (KEY_HOME, "Home", 2, True), (KEY_PAGEUP, "PgUp", 2, True)],
-    [(KEY_DELETE, "Del", 2, True), (KEY_END, "End", 2, True), (KEY_PAGEDOWN, "PgDn", 2, True)],
+    [(KEY_INSERT, "Ins"), (KEY_HOME, "Home"), (KEY_PAGEUP, "PgUp")],
+    [(KEY_DELETE, "Del"), (KEY_END, "End"), (KEY_PAGEDOWN, "PgDn")],
     [6],
-    [2, (KEY_UP, "↑"), 2],
+    [2, (KEY_UP, "↑")],
     [(KEY_LEFT, "←"), (KEY_DOWN, "↓"), (KEY_RIGHT, "→")],
 ]
 
 numpad_rows = [
-    [(KEY_NUMLOCK, "Num"), (KEY_KPSLASH, "/"), (KEY_KPASTERISK, "*"), (KEY_KPMINUS, "-")],
+    [(KEY_NUMLOCK, " Num "), (KEY_KPSLASH, "/"), (KEY_KPASTERISK, "*"), (KEY_KPMINUS, "-")],
     [(KEY_KP7, "7"), (KEY_KP8, "8"), (KEY_KP9, "9"), (KEY_KPPLUS, "+")],
-    [(KEY_KP4, "4"), (KEY_KP5, "5"), (KEY_KP6, "6"), 2],
-    [(KEY_KP1, "1"), (KEY_KP2, "2"), (KEY_KP3, "3"), 2],
+    [(KEY_KP4, "4"), (KEY_KP5, "5"), (KEY_KP6, "6")],
+    [(KEY_KP1, "1"), (KEY_KP2, "2"), (KEY_KP3, "3")],
     [(KEY_KP0, "0", 4), (KEY_KPDOT, "."), (KEY_KPENTER, "⏎")],
 ]
 
@@ -374,7 +374,7 @@ class VirtualKeyboard(Gtk.Window):
             key = entry[0]
             label = entry[1]
             width = entry[2] if len(entry) >= 3 else 2
-            small = entry[3] if len(entry) >= 4 else False
+            small = len(label) > 1  # use small font for multi-character labels
 
             button = Gtk.Button(label=label)
             if small:
