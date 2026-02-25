@@ -11,7 +11,6 @@ gi.require_version('Gtk', '3.0')
 from gi.repository import Gtk
 from gi.repository import GLib
 
-
 from uinput import Device, KEY_ESC, KEY_F1, KEY_F2, KEY_F3, KEY_F4, KEY_F5, KEY_F6, KEY_F7, KEY_F8, KEY_F9, KEY_F10, KEY_F11, KEY_F12, KEY_GRAVE, KEY_1, KEY_2, KEY_3, KEY_4, KEY_5, KEY_6, KEY_7, KEY_8, KEY_9, KEY_0, KEY_MINUS, KEY_EQUAL, KEY_BACKSPACE, KEY_TAB, KEY_Q, KEY_W, KEY_E, KEY_R, KEY_T, KEY_Y, KEY_U, KEY_I, KEY_O, KEY_P, KEY_LEFTBRACE, KEY_RIGHTBRACE, KEY_BACKSLASH, KEY_CAPSLOCK, KEY_A, KEY_S, KEY_D, KEY_F, KEY_G, KEY_H, KEY_J, KEY_K, KEY_L, KEY_SEMICOLON, KEY_APOSTROPHE, KEY_ENTER, KEY_LEFTSHIFT, KEY_Z, KEY_X, KEY_C, KEY_V, KEY_B, KEY_N, KEY_M, KEY_COMMA, KEY_DOT, KEY_SLASH, KEY_RIGHTSHIFT, KEY_LEFTCTRL, KEY_LEFTMETA, KEY_LEFTALT, KEY_SPACE, KEY_RIGHTALT, KEY_RIGHTMETA, KEY_RIGHTCTRL, KEY_SYSRQ, KEY_SCROLLLOCK, KEY_PAUSE, KEY_INSERT, KEY_HOME, KEY_PAGEUP, KEY_DELETE, KEY_END, KEY_PAGEDOWN, KEY_UP, KEY_LEFT, KEY_DOWN, KEY_RIGHT, KEY_NUMLOCK, KEY_KP0, KEY_KP1, KEY_KP2, KEY_KP3, KEY_KP4, KEY_KP5, KEY_KP6, KEY_KP7, KEY_KP8, KEY_KP9, KEY_KPPLUS, KEY_KPMINUS, KEY_KPASTERISK, KEY_KPSLASH, KEY_KPDOT, KEY_KPENTER
 
 function_row = [
@@ -60,7 +59,6 @@ base_rows = [
      (KEY_RIGHTCTRL, "Ctrl", 3)],
 ]
 
-
 # Maps keys to their shifted symbols, used to update button labels when shift is active
 shift_dict = {
     KEY_GRAVE: "~", KEY_1: "!", KEY_2: "@", KEY_3: "#", KEY_4: "$",
@@ -97,11 +95,11 @@ class VirtualKeyboard(Gtk.Window):
         self.CONFIG_FILE = os.path.join(self.CONFIG_DIR, "settings.conf")
         self.config = configparser.ConfigParser()
 
-        self.bg_color = "0, 0, 0"  # background color
+        self.bg_color = "0,0,0"  # background color
         self.opacity = "0.90"
+        self.read_settings()
         self.text_color = self.get_text_color(self.bg_color)
         self.outline_color = self.get_outline_color(self.bg_color)
-        self.read_settings()
 
         self.modifiers = {
             KEY_LEFTSHIFT: False, KEY_RIGHTSHIFT: False,
@@ -109,7 +107,7 @@ class VirtualKeyboard(Gtk.Window):
             KEY_LEFTALT: False, KEY_RIGHTALT: False,
             KEY_LEFTMETA: False, KEY_RIGHTMETA: False,
             KEY_CAPSLOCK: False,
-             KEY_NUMLOCK: False
+            KEY_NUMLOCK: False,
         }
 
         self.colors = [
@@ -141,7 +139,7 @@ class VirtualKeyboard(Gtk.Window):
 
         # Use Grid for layout
         grid = Gtk.Grid()
-        grid.set_row_homogeneous(True)   # rows resize uniformly
+        grid.set_row_homogeneous(True)    # rows resize uniformly
         grid.set_column_homogeneous(True)  # columns are equal width
         grid.set_margin_start(3)
         grid.set_margin_end(3)
@@ -150,13 +148,12 @@ class VirtualKeyboard(Gtk.Window):
         self.apply_css()
         self.button_keys = {}  # maps button widget -> uinput key constant
 
+        # Define rows for keys
         rows = [function_row + [1] + navigation_rows[0] + [1] + numpad_rows[0]]
-        rows.append([])  # spacer
         for i in range(len(base_rows)):
             rows.append(base_rows[i] + [1] + navigation_rows[i + 1] + [1] + numpad_rows[i + 1])
 
-
-        # build both at the same time from the rows
+        # build key_labels and all_keys from rows
         all_keys = set()
         self.key_labels = {}  # key constant -> default label
         for row in rows:
@@ -180,7 +177,6 @@ class VirtualKeyboard(Gtk.Window):
             self.modifier_buttons[KEY_NUMLOCK].get_style_context().add_class('pressed')
         else:
             self.update_label_numlock(True)  # numlock off at startup, show nav labels
-
 
     def create_settings(self):
         self.create_button("☰", self.change_visibility, callbacks=1)
@@ -245,7 +241,7 @@ class VirtualKeyboard(Gtk.Window):
     def get_default_font_size(self):
         style = self.get_style_context()
         font = style.get_property("font", Gtk.StateFlags.NORMAL)
-        return font.get_size() / 1024
+        return font.get_size() / 1024  # Pango uses 1024 units per point
 
     def get_text_color(self, rgb_string):
         r, g, b = [int(x) for x in rgb_string.split(",")]
@@ -253,18 +249,11 @@ class VirtualKeyboard(Gtk.Window):
         luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
         return "#1C1C1C" if luminance > 0.5 else "white"
 
-    def get_outline_color_2(self, rgb_string):
-        r, g, b = [int(x) for x in rgb_string.split(",")]
-        # standard luminance formula
-        luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
-        return "#C0C0C0" if luminance > 0.5 else "#404040"
-
     def get_outline_color(self, rgb_string):
         r, g, b = [int(x) for x in rgb_string.split(",")]
         gray = int(0.299 * r + 0.587 * g + 0.114 * b)
         outline = (gray + 0x40) % 256
         return f"#{outline:02x}{outline:02x}{outline:02x}"
-
 
     def apply_css(self):
         provider = Gtk.CssProvider()
@@ -291,9 +280,7 @@ class VirtualKeyboard(Gtk.Window):
         #combobox button.combo {{ color: {self.text_color}; padding: 5px; }}
         #grid button.small-key label {{ font-size: {small}pt; }}
         #grid button.numlock-label label {{ font-size: {small}pt; }}
-        #row-spacer {{ min-height: 19px; }}
         """
-
         try:
             provider.load_from_data(css.encode("utf-8"))
         except GLib.GError as e:
@@ -306,12 +293,6 @@ class VirtualKeyboard(Gtk.Window):
         return width
 
     def create_row(self, grid, row_index, row):
-        if not row:
-            spacer = Gtk.Label(label="")
-            spacer.set_name("row-spacer")
-            grid.attach(spacer, 0, row_index, 4, 1)
-            return
-
         col = 0
         for entry in row:
             # plain int = gap
@@ -469,7 +450,6 @@ class VirtualKeyboard(Gtk.Window):
                 self.config.read(self.CONFIG_FILE)
                 self.bg_color = self.config.get("DEFAULT", "bg_color")
                 self.opacity = self.config.get("DEFAULT", "opacity")
-                self.text_color = self.config.get("DEFAULT", "text_color", fallback="white")
                 self.width = self.config.getint("DEFAULT", "width", fallback=0)
                 self.height = self.config.getint("DEFAULT", "height", fallback=0)
         except configparser.Error as e:
@@ -478,7 +458,7 @@ class VirtualKeyboard(Gtk.Window):
     def save_settings(self):
         self.config["DEFAULT"] = {
             "bg_color": self.bg_color, "opacity": self.opacity,
-            "text_color": self.text_color, "width": self.width, "height": self.height
+            "width": self.width, "height": self.height,
         }
         try:
             with open(self.CONFIG_FILE, "w") as configfile:
@@ -492,7 +472,6 @@ if __name__ == "__main__":
     win.connect("destroy", Gtk.main_quit)
     win.connect("destroy", lambda w: win.save_settings())
     win.show_all()
-    size = win.get_default_font_size()
     win.connect("configure-event", win.on_resize)
     win.change_visibility()
     Gtk.main()
