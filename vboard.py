@@ -14,8 +14,8 @@ from gi.repository import GLib
 from uinput import Device, KEY_ESC, KEY_F1, KEY_F2, KEY_F3, KEY_F4, KEY_F5, KEY_F6, KEY_F7, KEY_F8, KEY_F9, KEY_F10, KEY_F11, KEY_F12, KEY_GRAVE, KEY_1, KEY_2, KEY_3, KEY_4, KEY_5, KEY_6, KEY_7, KEY_8, KEY_9, KEY_0, KEY_MINUS, KEY_EQUAL, KEY_BACKSPACE, KEY_TAB, KEY_Q, KEY_W, KEY_E, KEY_R, KEY_T, KEY_Y, KEY_U, KEY_I, KEY_O, KEY_P, KEY_LEFTBRACE, KEY_RIGHTBRACE, KEY_BACKSLASH, KEY_CAPSLOCK, KEY_A, KEY_S, KEY_D, KEY_F, KEY_G, KEY_H, KEY_J, KEY_K, KEY_L, KEY_SEMICOLON, KEY_APOSTROPHE, KEY_ENTER, KEY_LEFTSHIFT, KEY_Z, KEY_X, KEY_C, KEY_V, KEY_B, KEY_N, KEY_M, KEY_COMMA, KEY_DOT, KEY_SLASH, KEY_RIGHTSHIFT, KEY_LEFTCTRL, KEY_LEFTMETA, KEY_LEFTALT, KEY_SPACE, KEY_RIGHTALT, KEY_RIGHTMETA, KEY_RIGHTCTRL, KEY_SYSRQ, KEY_SCROLLLOCK, KEY_PAUSE, KEY_INSERT, KEY_HOME, KEY_PAGEUP, KEY_DELETE, KEY_END, KEY_PAGEDOWN, KEY_UP, KEY_LEFT, KEY_DOWN, KEY_RIGHT, KEY_NUMLOCK, KEY_KP0, KEY_KP1, KEY_KP2, KEY_KP3, KEY_KP4, KEY_KP5, KEY_KP6, KEY_KP7, KEY_KP8, KEY_KP9, KEY_KPPLUS, KEY_KPMINUS, KEY_KPASTERISK, KEY_KPSLASH, KEY_KPDOT, KEY_KPENTER
 
 # Gap sizes in pixels
-VBOX_SPACING = 12   # gap between top and bottom hboxes
-HBOX_SPACING = 16   # gap between grids within each hbox
+VBOX_SPACING = 12  # gap between top and bottom hboxes
+HBOX_SPACING = 16  # gap between grids within each hbox
 
 fn_rows = [
     [(KEY_ESC, "Esc"), 2, (KEY_F1, "F1"), (KEY_F2, "F2"), (KEY_F3, "F3"), (KEY_F4, "F4"),
@@ -40,7 +40,7 @@ navigation_rows = [
 ]
 
 numpad_rows = [
-    [(KEY_NUMLOCK, "Num"), (KEY_KPSLASH, "/"), (KEY_KPASTERISK, "*"), (KEY_KPMINUS, "-")],
+    [(KEY_NUMLOCK, "Num"), (KEY_KPSLASH, "/"), (KEY_KPASTERISK, "*"), (KEY_KPMINUS, "-", 2, 2)],
     [(KEY_KP7, "7"), (KEY_KP8, "8"), (KEY_KP9, "9"), (KEY_KPPLUS, "+", 2, 2)],
     [(KEY_KP4, "4"), (KEY_KP5, "5"), (KEY_KP6, "6")],
     [(KEY_KP1, "1"), (KEY_KP2, "2"), (KEY_KP3, "3"), (KEY_KPENTER, "⏎", 2, 2)],
@@ -68,6 +68,12 @@ base_rows = [
      (KEY_SPACE, "Space", 12), (KEY_RIGHTALT, "Alt", 3), (KEY_RIGHTMETA, "OS", 3),
      (KEY_RIGHTCTRL, "Ctrl", 3)],
 ]
+
+LAYOUTS = {
+    "Compact": {"fn": False, "sys": False, "nav": False, "num": False},
+    "TKL":     {"fn": True,  "sys": True,  "nav": True,  "num": False},
+    "Full":    {"fn": True,  "sys": True,  "nav": True,  "num": True},
+}
 
 # Maps keys to their shifted symbols, used to update button labels when shift is active
 shift_dict = {
@@ -98,8 +104,6 @@ class VirtualKeyboard(Gtk.Window):
         self.set_focus_on_map(False)
         self.set_can_focus(False)
         self.set_accept_focus(False)
-        self.width = 0
-        self.height = 0
 
         self.CONFIG_DIR = os.path.expanduser("~/.config/vboard")
         self.CONFIG_FILE = os.path.join(self.CONFIG_DIR, "settings.conf")
@@ -107,6 +111,8 @@ class VirtualKeyboard(Gtk.Window):
 
         self.bg_color = "0,0,0"  # background color
         self.opacity = "0.90"
+        self.current_layout = "Full"
+        self.layout_sizes = {name: (0, 0) for name in LAYOUTS}
         self.read_settings()
         self.text_color = self.get_text_color(self.bg_color)
         self.outline_color = self.get_outline_color(self.bg_color)
@@ -131,16 +137,12 @@ class VirtualKeyboard(Gtk.Window):
             ("Beige", "245,245,220"), ("Lavender", "230,230,250"),
         ]
 
-        if self.width != 0:
-            self.set_default_size(self.width, self.height)
-
         self.header = Gtk.HeaderBar()
         self.header.set_show_close_button(True)
         self.buttons = []
         self.modifier_buttons = {}
         self.row_buttons = []
         self.color_combobox = Gtk.ComboBoxText()
-        # Set the header bar as the titlebar of the window
         self.set_titlebar(self.header)
         self.set_default_icon_name("preferences-desktop-keyboard")
         self.header.set_decoration_layout(":minimize,maximize,close")
@@ -149,104 +151,8 @@ class VirtualKeyboard(Gtk.Window):
 
         self.apply_css()
         self.button_keys = {}  # maps button widget -> uinput key constant
-
-        def make_grid():
-            g = Gtk.Grid()
-            g.set_row_homogeneous(True)    # rows resize uniformly
-            g.set_column_homogeneous(True)  # columns are equal width
-            g.set_name("grid")
-            return g
-
-        # Top hbox: function row | sys keys | numpad-width spacer
-        grid_fn  = make_grid()
-        grid_sys = make_grid()
-        grid_fn_pad = make_grid()  # empty placeholder matching numpad width
-
-        # Main hbox: base rows | nav cluster | numpad
-        grid_main = make_grid()
-        grid_nav  = make_grid()
-        grid_num  = make_grid()
-
-        hbox_top  = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=HBOX_SPACING)
-        hbox_main = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=HBOX_SPACING)
-        vbox      = Gtk.Box(orientation=Gtk.Orientation.VERTICAL,   spacing=VBOX_SPACING)
-
-        hbox_top.pack_start(grid_fn,     True,  True,  0)
-        hbox_top.pack_start(grid_sys,    False, False, 0)
-        hbox_top.pack_start(grid_fn_pad, False, False, 0)
-
-        hbox_main.pack_start(grid_main, True,  True,  0)
-        hbox_main.pack_start(grid_nav,  False, False, 0)
-        hbox_main.pack_start(grid_num,  False, False, 0)
-
-        vbox.pack_start(hbox_top,  False, False, 0)
-        vbox.pack_start(hbox_main, True,  True,  0)
-        self.add(vbox)
-
-        # Collect all rows for key_labels/all_keys building
-        all_row_groups = [fn_rows, sys_rows, base_rows, navigation_rows, numpad_rows]
-        all_keys = set()
-        self.key_labels = {}  # key constant -> default label
-        for group in all_row_groups:
-            for row in group:
-                for entry in row:
-                    if isinstance(entry, tuple):
-                        all_keys.add(entry[0])
-                        self.key_labels[entry[0]] = entry[1]
-        self.device = Device(all_keys)
-
-        # Populate grids, saving reference buttons for SizeGroup
-        i = len(self.row_buttons)
-        for row_index, row in enumerate(fn_rows):
-            self.create_row(grid_fn, row_index, row)
-        ref_fn = self.row_buttons[i]
-
-        i = len(self.row_buttons)
-        for row_index, row in enumerate(sys_rows):
-            self.create_row(grid_sys, row_index, row)
-        ref_sys = self.row_buttons[i]
-
-        for row_index, row in enumerate(fn_pad_rows):
-            self.create_row(grid_fn_pad, row_index, row)
-
-        i = len(self.row_buttons)
-        for row_index, row in enumerate(base_rows):
-            self.create_row(grid_main, row_index, row)
-        ref_main = self.row_buttons[i]
-
-        i = len(self.row_buttons)
-        for row_index, row in enumerate(navigation_rows):
-            self.create_row(grid_nav, row_index, row)
-        ref_nav = self.row_buttons[i]
-
-        i = len(self.row_buttons)
-        for row_index, row in enumerate(numpad_rows):
-            self.create_row(grid_num, row_index, row)
-        ref_num = self.row_buttons[i]
-
-        # Synchronize column widths: fn<->main, sys<->nav, num<->fn_pad(grid level)
-        sg_main = Gtk.SizeGroup(mode=Gtk.SizeGroupMode.HORIZONTAL)
-        sg_main.add_widget(ref_fn)
-        sg_main.add_widget(ref_main)
-
-        sg_side = Gtk.SizeGroup(mode=Gtk.SizeGroupMode.HORIZONTAL)
-        sg_side.add_widget(ref_sys)
-        sg_side.add_widget(ref_nav)
-
-        sg_pad = Gtk.SizeGroup(mode=Gtk.SizeGroupMode.HORIZONTAL)
-        sg_pad.add_widget(grid_fn_pad)
-        sg_pad.add_widget(grid_num)
-
-        # Initialize CapsLock & Numlock visual state after buttons exist
-        self.modifiers[KEY_CAPSLOCK] = self.get_capslock_state()
-        if self.modifiers[KEY_CAPSLOCK]:
-            self.modifier_buttons[KEY_CAPSLOCK].get_style_context().add_class('pressed')
-
-        self.modifiers[KEY_NUMLOCK] = self.get_numlock_state()
-        if self.modifiers[KEY_NUMLOCK]:
-            self.modifier_buttons[KEY_NUMLOCK].get_style_context().add_class('pressed')
-        else:
-            self.update_label_numlock(True)  # numlock off at startup, show nav labels
+        self.vbox = None
+        self.build_layout(self.current_layout)
 
     def create_settings(self):
         self.create_button("☰", self.change_visibility, callbacks=1)
@@ -261,8 +167,157 @@ class VirtualKeyboard(Gtk.Window):
         for label, color in self.colors:
             self.color_combobox.append_text(label)
 
+        self.layout_combobox = Gtk.ComboBoxText()
+        self.layout_combobox.set_name("combobox")
+        for name in LAYOUTS:
+            self.layout_combobox.append_text(name)
+        self.layout_combobox.set_active(list(LAYOUTS.keys()).index(self.current_layout))
+        self.layout_combobox.connect("changed", self.change_layout)
+        self.header.add(self.layout_combobox)
+
+    def change_layout(self, widget):
+        name = self.layout_combobox.get_active_text()
+        if name and name != self.current_layout:
+            self.current_layout = name
+            self.build_layout(name)
+
+    def build_layout(self, name):
+        layout = LAYOUTS[name]
+
+        # Tear down existing layout
+        if self.vbox is not None:
+            self.remove(self.vbox)
+            self.vbox.destroy()
+
+        self.row_buttons = []
+        self.button_keys = {}
+        self.modifier_buttons = {}
+
+        def make_grid():
+            g = Gtk.Grid()
+            g.set_row_homogeneous(True)    # rows resize uniformly
+            g.set_column_homogeneous(True)  # columns are equal width
+            g.set_name("grid")
+            return g
+
+        grid_main = make_grid()
+        hbox_main = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=HBOX_SPACING)
+        hbox_main.pack_start(grid_main, True, True, 0)
+
+        self.vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=VBOX_SPACING)
+
+        # Collect all keys for device (always from all row groups regardless of layout)
+        all_row_groups = [fn_rows, sys_rows, base_rows, navigation_rows, numpad_rows]
+        all_keys = set()
+        self.key_labels = {}  # key constant -> default label
+        for group in all_row_groups:
+            for row in group:
+                for entry in row:
+                    if isinstance(entry, tuple):
+                        all_keys.add(entry[0])
+                        self.key_labels[entry[0]] = entry[1]
+        if not hasattr(self, 'device'):
+            self.device = Device(all_keys)
+
+        # Build top hbox if fn row is included
+        if layout["fn"]:
+            grid_fn = make_grid()
+            grid_sys = make_grid()
+            grid_fn_pad = make_grid()
+            hbox_top = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=HBOX_SPACING)
+            hbox_top.pack_start(grid_fn, True, True, 0)
+            if layout["sys"]:
+                hbox_top.pack_start(grid_sys, False, False, 0)
+            if layout["num"]:
+                hbox_top.pack_start(grid_fn_pad, False, False, 0)
+            self.vbox.pack_start(hbox_top, False, False, 0)
+
+        # Build nav grid
+        if layout["nav"]:
+            grid_nav = make_grid()
+            hbox_main.pack_start(grid_nav, False, False, 0)
+
+        # Build numpad grid
+        if layout["num"]:
+            grid_num = make_grid()
+            hbox_main.pack_start(grid_num, False, False, 0)
+
+        self.vbox.pack_start(hbox_main, True, True, 0)
+        self.add(self.vbox)
+
+        # Populate grids, saving reference buttons for SizeGroups
+        ref_fn = ref_main = ref_sys = ref_nav = None
+
+        if layout["fn"]:
+            i = len(self.row_buttons)
+            for row_index, row in enumerate(fn_rows):
+                self.create_row(grid_fn, row_index, row)
+            ref_fn = self.row_buttons[i]
+
+            if layout["sys"]:
+                i = len(self.row_buttons)
+                for row_index, row in enumerate(sys_rows):
+                    self.create_row(grid_sys, row_index, row)
+                ref_sys = self.row_buttons[i]
+
+            if layout["num"]:
+                for row_index, row in enumerate(fn_pad_rows):
+                    self.create_row(grid_fn_pad, row_index, row)
+
+        i = len(self.row_buttons)
+        for row_index, row in enumerate(base_rows):
+            self.create_row(grid_main, row_index, row)
+        ref_main = self.row_buttons[i]
+
+        if layout["nav"]:
+            i = len(self.row_buttons)
+            for row_index, row in enumerate(navigation_rows):
+                self.create_row(grid_nav, row_index, row)
+            ref_nav = self.row_buttons[i]
+
+        if layout["num"]:
+            i = len(self.row_buttons)
+            for row_index, row in enumerate(numpad_rows):
+                self.create_row(grid_num, row_index, row)
+
+            sg_pad = Gtk.SizeGroup(mode=Gtk.SizeGroupMode.HORIZONTAL)
+            sg_pad.add_widget(grid_fn_pad)
+            sg_pad.add_widget(grid_num)
+
+        # Synchronize column widths between top and main grids
+        if ref_fn and ref_main:
+            sg_main = Gtk.SizeGroup(mode=Gtk.SizeGroupMode.HORIZONTAL)
+            sg_main.add_widget(ref_fn)
+            sg_main.add_widget(ref_main)
+
+        if ref_sys and ref_nav:
+            sg_side = Gtk.SizeGroup(mode=Gtk.SizeGroupMode.HORIZONTAL)
+            sg_side.add_widget(ref_sys)
+            sg_side.add_widget(ref_nav)
+
+        # Initialize CapsLock & Numlock visual state
+        self.modifiers[KEY_CAPSLOCK] = self.get_capslock_state()
+        if self.modifiers[KEY_CAPSLOCK] and KEY_CAPSLOCK in self.modifier_buttons:
+            self.modifier_buttons[KEY_CAPSLOCK].get_style_context().add_class('pressed')
+
+        self.modifiers[KEY_NUMLOCK] = self.get_numlock_state()
+        if self.modifiers[KEY_NUMLOCK] and KEY_NUMLOCK in self.modifier_buttons:
+            self.modifier_buttons[KEY_NUMLOCK].get_style_context().add_class('pressed')
+        elif KEY_NUMLOCK in self.modifier_buttons:
+            self.update_label_numlock(True)
+
+        self.vbox.show_all()
+
+        # Restore saved size for this layout, or shrink to fit
+        w, h = self.layout_sizes.get(name, (0, 0))
+        if w and h:
+            self.resize(w, h)
+        else:
+            self.resize(1, 1)
+
     def on_resize(self, widget, event):
-        self.width, self.height = self.get_size()
+        w, h = self.get_size()
+        self.layout_sizes[self.current_layout] = (w, h)
 
     def get_capslock_state(self):
         output = subprocess.check_output("xset q", shell=True).decode()
@@ -290,6 +345,7 @@ class VirtualKeyboard(Gtk.Window):
             if button.get_label() != "☰":
                 button.set_visible(not button.get_visible())
         self.color_combobox.set_visible(not self.color_combobox.get_visible())
+        self.layout_combobox.set_visible(not self.layout_combobox.get_visible())
 
     def change_color(self, widget):
         label = self.color_combobox.get_active_text()
@@ -521,16 +577,24 @@ class VirtualKeyboard(Gtk.Window):
                 self.config.read(self.CONFIG_FILE)
                 self.bg_color = self.config.get("DEFAULT", "bg_color")
                 self.opacity = self.config.get("DEFAULT", "opacity")
-                self.width = self.config.getint("DEFAULT", "width", fallback=0)
-                self.height = self.config.getint("DEFAULT", "height", fallback=0)
+                self.current_layout = self.config.get("DEFAULT", "layout", fallback="Full")
+                for name in LAYOUTS:
+                    w = self.config.getint("SIZES", f"{name}_width", fallback=0)
+                    h = self.config.getint("SIZES", f"{name}_height", fallback=0)
+                    self.layout_sizes[name] = (w, h)
         except configparser.Error as e:
             print(f"Warning: Could not read config file ({e}).")
 
     def save_settings(self):
         self.config["DEFAULT"] = {
-            "bg_color": self.bg_color, "opacity": self.opacity,
-            "width": self.width, "height": self.height,
+            "bg_color": self.bg_color,
+            "opacity": self.opacity,
+            "layout": self.current_layout,
         }
+        self.config["SIZES"] = {}
+        for name, (w, h) in self.layout_sizes.items():
+            self.config["SIZES"][f"{name}_width"] = str(w)
+            self.config["SIZES"][f"{name}_height"] = str(h)
         try:
             with open(self.CONFIG_FILE, "w") as configfile:
                 self.config.write(configfile)
