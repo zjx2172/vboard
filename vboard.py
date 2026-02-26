@@ -75,7 +75,12 @@ LAYOUTS = {
     "Full":    {"fn": True,  "sys": True,  "nav": True,  "num": True},
 }
 
-# Maps keys to their shifted symbols, used to update button labels when shift is active
+# Modifier states
+MOD_OFF    = 0  # inactive
+MOD_ON     = 1  # active for one keypress, then releases
+MOD_LOCKED = 2  # stays active until clicked again
+
+
 shift_dict = {
     KEY_GRAVE: "~", KEY_1: "!", KEY_2: "@", KEY_3: "#", KEY_4: "$",
     KEY_5: "%", KEY_6: "^", KEY_7: "&", KEY_8: "*", KEY_9: "(",
@@ -118,12 +123,12 @@ class VirtualKeyboard(Gtk.Window):
         self.outline_color = self.get_outline_color(self.bg_color)
 
         self.modifiers = {
-            KEY_LEFTSHIFT: False, KEY_RIGHTSHIFT: False,
-            KEY_LEFTCTRL: False, KEY_RIGHTCTRL: False,
-            KEY_LEFTALT: False, KEY_RIGHTALT: False,
-            KEY_LEFTMETA: False, KEY_RIGHTMETA: False,
-            KEY_CAPSLOCK: False,
-            KEY_NUMLOCK: False,
+            KEY_LEFTSHIFT: MOD_OFF, KEY_RIGHTSHIFT: MOD_OFF,
+            KEY_LEFTCTRL: MOD_OFF, KEY_RIGHTCTRL: MOD_OFF,
+            KEY_LEFTALT: MOD_OFF, KEY_RIGHTALT: MOD_OFF,
+            KEY_LEFTMETA: MOD_OFF, KEY_RIGHTMETA: MOD_OFF,
+            KEY_CAPSLOCK: MOD_OFF,
+            KEY_NUMLOCK: MOD_OFF,
         }
 
         self.colors = [
@@ -296,15 +301,17 @@ class VirtualKeyboard(Gtk.Window):
             sg_side.add_widget(ref_nav)
 
         # Initialize CapsLock & Numlock visual state
-        self.modifiers[KEY_CAPSLOCK] = self.get_capslock_state()
-        if self.modifiers[KEY_CAPSLOCK] and KEY_CAPSLOCK in self.modifier_buttons:
-            self.modifier_buttons[KEY_CAPSLOCK].get_style_context().add_class('pressed')
+        caps_on = self.get_capslock_state()
+        self.modifiers[KEY_CAPSLOCK] = MOD_ON if caps_on else MOD_OFF
+        if KEY_CAPSLOCK in self.modifier_buttons:
+            self.update_modifier(KEY_CAPSLOCK, self.modifiers[KEY_CAPSLOCK])
 
-        self.modifiers[KEY_NUMLOCK] = self.get_numlock_state()
-        if self.modifiers[KEY_NUMLOCK] and KEY_NUMLOCK in self.modifier_buttons:
-            self.modifier_buttons[KEY_NUMLOCK].get_style_context().add_class('pressed')
-        elif KEY_NUMLOCK in self.modifier_buttons:
-            self.update_label_numlock(True)
+        num_on = self.get_numlock_state()
+        self.modifiers[KEY_NUMLOCK] = MOD_ON if num_on else MOD_OFF
+        if KEY_NUMLOCK in self.modifier_buttons:
+            self.update_modifier(KEY_NUMLOCK, self.modifiers[KEY_NUMLOCK])
+            if not num_on:
+                self.update_label_numlock(True)
 
         self.vbox.show_all()
 
@@ -400,6 +407,8 @@ class VirtualKeyboard(Gtk.Window):
         button {{ background-color: transparent; color: {self.text_color}; }}
         #grid button:hover {{ border: 1px solid #00CACB; }}
         #grid button.pressed, #grid button.pressed:hover {{ border: 1px solid {self.text_color}; }}
+        #grid button.locked, #grid button.locked:hover {{ border: 1px solid {self.text_color}; background-color: {self.text_color}; }}
+        #grid button.locked label, #grid button.locked:hover label {{ color: rgba({self.bg_color}, {self.opacity}); }}
         #grid button:active {{ background-color: {self.text_color}; }}
         #grid button:active label {{ color: rgba({self.bg_color}, {self.opacity}); }}
         tooltip {{ color: white; padding: 5px; }}
@@ -464,33 +473,48 @@ class VirtualKeyboard(Gtk.Window):
                 button.set_label(self.key_labels[key])
                 button.get_style_context().remove_class('numlock-label')
 
-    def update_modifier(self, key_event, value):
-        self.modifiers[key_event] = value
+    def update_modifier(self, key_event, state):
+        self.modifiers[key_event] = state
         button = self.modifier_buttons[key_event]
-        style_context = button.get_style_context()
-        if value:
-            style_context.add_class('pressed')
-        else:
-            style_context.remove_class('pressed')
+        ctx = button.get_style_context()
+        ctx.remove_class('pressed')
+        ctx.remove_class('locked')
+        if state == MOD_ON:
+            ctx.add_class('pressed')
+        elif state == MOD_LOCKED:
+            ctx.add_class('locked')
+
+    def update_modifier(self, key_event, state):
+        old_state = self.modifiers[key_event]
+        self.modifiers[key_event] = state
+        button = self.modifier_buttons[key_event]
+        ctx = button.get_style_context()
+        ctx.remove_class('pressed')
+        ctx.remove_class('locked')
+        if state == MOD_ON:
+            ctx.add_class('pressed')
+        elif state == MOD_LOCKED:
+            ctx.add_class('locked')
+            # hold the key down at device level when locking
+            if key_event not in (KEY_CAPSLOCK, KEY_NUMLOCK):
+                self.device.emit(key_event, 1)
+        # release at device level when going from locked to off
+        if old_state == MOD_LOCKED and state == MOD_OFF:
+            if key_event not in (KEY_CAPSLOCK, KEY_NUMLOCK):
+                self.device.emit(key_event, 0)
 
     def sync_capslock(self):
         state = self.get_capslock_state()
-        self.modifiers[KEY_CAPSLOCK] = state
-        style_context = self.modifier_buttons[KEY_CAPSLOCK].get_style_context()
-        if state:
-            style_context.add_class('pressed')
-        else:
-            style_context.remove_class('pressed')
+        mod_state = MOD_ON if state else MOD_OFF
+        self.modifiers[KEY_CAPSLOCK] = mod_state
+        self.update_modifier(KEY_CAPSLOCK, mod_state)
         return False  # don't repeat
 
     def sync_numlock(self):
         state = self.get_numlock_state()
-        self.modifiers[KEY_NUMLOCK] = state
-        style_context = self.modifier_buttons[KEY_NUMLOCK].get_style_context()
-        if state:
-            style_context.add_class('pressed')
-        else:
-            style_context.remove_class('pressed')
+        mod_state = MOD_ON if state else MOD_OFF
+        self.modifiers[KEY_NUMLOCK] = mod_state
+        self.update_modifier(KEY_NUMLOCK, mod_state)
         self.update_label_numlock(not state)  # numlock off = navigation labels visible
         return False
 
@@ -509,14 +533,21 @@ class VirtualKeyboard(Gtk.Window):
             GLib.timeout_add(50, self.sync_numlock)
             return
 
-        # If it's a modifier, toggle state (like Shift, Ctrl, etc.)
+        # If it's a modifier, cycle state: off -> on -> locked -> off
         if key_event in self.modifiers:
-            self.update_modifier(key_event, not self.modifiers[key_event])
+            current = self.modifiers[key_event]
+            if current == MOD_OFF:
+                new_state = MOD_ON
+            elif current == MOD_ON:
+                new_state = MOD_LOCKED
+            else:
+                new_state = MOD_OFF
+            self.update_modifier(key_event, new_state)
 
             # prevent both shifts being active at once
             if self.modifiers[KEY_LEFTSHIFT] and self.modifiers[KEY_RIGHTSHIFT]:
-                self.update_modifier(KEY_LEFTSHIFT, False)
-                self.update_modifier(KEY_RIGHTSHIFT, False)
+                self.update_modifier(KEY_LEFTSHIFT, MOD_OFF)
+                self.update_modifier(KEY_RIGHTSHIFT, MOD_OFF)
 
             # update label state (caps-like effect)
             if self.modifiers[KEY_LEFTSHIFT] or self.modifiers[KEY_RIGHTSHIFT]:
@@ -525,46 +556,31 @@ class VirtualKeyboard(Gtk.Window):
                 self.update_label_shift(False)
             return  # modifiers don't repeat
 
-        # Fire key once immediately
-        self.emit_key(key_event)
-
-        # Start a one-time delay before repeat kicks in (e.g. 400ms)
-        self.delay_source = GLib.timeout_add(400, self.start_repeat, key_event)
-
-    def on_button_release(self, widget, *args):
-        # Cancel both delay and repeat when released
-        if hasattr(self, "delay_source"):
-            GLib.source_remove(self.delay_source)
-            del self.delay_source
-        if hasattr(self, "repeat_source"):
-            GLib.source_remove(self.repeat_source)
-            del self.repeat_source
-
-    def start_repeat(self, key_event):
-        # After the delay, start the repeat loop
-        self.repeat_source = GLib.timeout_add(100, self.repeat_key, key_event)
-        return False  # stop this one-time delay timer
-
-    def repeat_key(self, key_event):
-        self.emit_key(key_event)
-        return True  # keep repeating
-
-    def emit_key(self, key_event):
-        # Apply active modifiers (excluding CapsLock & Numlock which are handled separately)
-        for mod_key, active in self.modifiers.items():
-            if active and mod_key not in (KEY_CAPSLOCK, KEY_NUMLOCK):
+        # Press MOD_ON modifiers down, then press the key
+        for mod_key, state in self.modifiers.items():
+            if state == MOD_ON and mod_key not in (KEY_CAPSLOCK, KEY_NUMLOCK):
                 self.device.emit(mod_key, 1)
 
-        # Emit the key
+        # Hold the key down — OS handles repeat rate via evdev
         self.device.emit(key_event, 1)
-        self.device.emit(key_event, 0)
-        self.update_label_shift(False)
+        self.pressed_key = key_event
 
-        # Release modifiers (so they only act as held while sending this key)
-        for mod_key, active in self.modifiers.items():
-            if active and mod_key not in (KEY_CAPSLOCK, KEY_NUMLOCK):
+    def on_button_release(self, widget, *args):
+        if not hasattr(self, 'pressed_key'):
+            return
+        key_event = self.pressed_key
+        del self.pressed_key
+
+        # Release the key
+        self.device.emit(key_event, 0)
+
+        # Release and clear MOD_ON modifiers
+        for mod_key, state in self.modifiers.items():
+            if state == MOD_ON and mod_key not in (KEY_CAPSLOCK, KEY_NUMLOCK):
                 self.device.emit(mod_key, 0)
-                self.update_modifier(mod_key, False)
+                self.update_modifier(mod_key, MOD_OFF)
+
+        self.update_label_shift(False)
 
     def read_settings(self):
         # Ensure the config directory exists
