@@ -143,6 +143,11 @@ class VirtualKeyboard(Gtk.Window):
         self.set_can_focus(False)
         self.set_accept_focus(False)
 
+        # No titlebar — KDE still provides resize handles and window menu on border right-click
+        self.set_decorated(False)
+        self.set_title("VBoard 2")
+        self.set_default_icon_name("preferences-desktop-keyboard")
+
         self.CONFIG_DIR = os.path.expanduser("~/.config/vboard")
         self.CONFIG_FILE = os.path.join(self.CONFIG_DIR, "settings.conf")
         self.config = configparser.ConfigParser()
@@ -174,12 +179,6 @@ class VirtualKeyboard(Gtk.Window):
             ("Beige", "245,245,220"), ("Lavender", "230,230,250"),
         ]
 
-        self.header = Gtk.HeaderBar()
-        self.header.set_show_close_button(True)
-        self.set_titlebar(self.header)
-        self.set_default_icon_name("preferences-desktop-keyboard")
-        self.header.set_decoration_layout(":minimize,close")
-
         self.apply_css()
         self.modifier_buttons = {}
         self.row_buttons = []
@@ -187,7 +186,6 @@ class VirtualKeyboard(Gtk.Window):
         self.vbox = None
         self.build_layout(self.current_layout)
 
-        # Right-click menu on the window
         self.connect("button-press-event", self.on_button_press_event)
 
     def build_context_menu(self):
@@ -230,9 +228,9 @@ class VirtualKeyboard(Gtk.Window):
 
         menu.append(Gtk.SeparatorMenuItem())
 
-        wm_item = Gtk.MenuItem(label="Window Menu")
-        wm_item.connect("activate", self.on_menu_window_menu)
-        menu.append(wm_item)
+        minimize_item = Gtk.MenuItem(label="Minimize")
+        minimize_item.connect("activate", lambda i: self.iconify())
+        menu.append(minimize_item)
 
         quit_item = Gtk.MenuItem(label="Quit")
         quit_item.connect("activate", Gtk.main_quit)
@@ -242,15 +240,16 @@ class VirtualKeyboard(Gtk.Window):
         return menu
 
     def on_button_press_event(self, widget, event):
-        if event.button == 3:  # right click
+        if event.button == 2:  # middle-click to drag
+            self.get_window().begin_move_drag(
+                event.button, int(event.x_root), int(event.y_root), event.time)
+            return True
+        if event.button == 3:  # right-click menu
             self._last_event = event.copy()
             menu = self.build_context_menu()
             menu.popup_at_pointer(event)
             return True
         return False
-
-    def on_menu_window_menu(self, item):
-        self.get_window().show_window_menu(self._last_event)
 
     def on_menu_layout(self, item, name):
         if item.get_active() and name != self.current_layout:
@@ -294,6 +293,8 @@ class VirtualKeyboard(Gtk.Window):
         self.vbox.set_margin_start(8)
         self.vbox.set_margin_end(8)
         self.vbox.set_margin_bottom(8)
+        self.vbox.set_margin_top(8)
+
         # Collect all keys for device (always from all row groups regardless of layout)
         all_row_groups = [fn_rows, sys_rows, base_60_rows, base_compact_rows, navigation_rows, numpad_rows]
         all_keys = set()
@@ -420,13 +421,6 @@ class VirtualKeyboard(Gtk.Window):
         default_size = default_font.get_size() / 1024
         small = round(default_size * 0.8, 1)
         css = f"""
-        headerbar {{
-            background-color: rgba({self.bg_color}, {self.opacity});
-            border: 0px; box-shadow: none; min-width: 0px; min-height: 0px; padding: 0px;
-        }}
-        headerbar button {{ min-width: 0px; min-height: 0px; padding: 2px; border: 0px; margin: 0px; }}
-        headerbar .titlebutton {{ min-width: 16px; min-height: 16px; }}
-        headerbar button label {{ color: {self.text_color}; }}
         #toplevel {{ background-color: rgba({self.bg_color}, {self.opacity}); }}
         #grid button label {{ color: {self.text_color}; }}
         #grid button {{ border: 1px solid {self.outline_color}; background-image: none; padding: 0px; margin: 0px; min-width: 0px; min-height: 0px; }}
