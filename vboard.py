@@ -45,14 +45,14 @@ navigation_rows = [
 ]
 
 numpad_rows = [
-    [(KEY_NUMLOCK, "Num"), (KEY_KPSLASH, "/"), (KEY_KPASTERISK, "*"), (KEY_KPMINUS, "-", 2, 2)],
+    [(KEY_NUMLOCK, " Num "), (KEY_KPSLASH, "/"), (KEY_KPASTERISK, "*"), (KEY_KPMINUS, "-", 2, 2)],
     [(KEY_KP7, "7"), (KEY_KP8, "8"), (KEY_KP9, "9"), (KEY_KPPLUS, "+", 2, 2)],
     [(KEY_KP4, "4"), (KEY_KP5, "5"), (KEY_KP6, "6")],
     [(KEY_KP1, "1"), (KEY_KP2, "2"), (KEY_KP3, "3"), (KEY_KPENTER, "⏎", 2, 2)],
     [(KEY_KP0, "0", 4), (KEY_KPDOT, ".")],
 ]
 
-base_rows = [
+base_60_rows = [
     [(KEY_GRAVE, "`"), (KEY_1, "1"), (KEY_2, "2"), (KEY_3, "3"), (KEY_4, "4"),
      (KEY_5, "5"), (KEY_6, "6"), (KEY_7, "7"), (KEY_8, "8"), (KEY_9, "9"),
      (KEY_0, "0"), (KEY_MINUS, "-"), (KEY_EQUAL, "="), (KEY_BACKSPACE, "⌫", 4)],
@@ -74,13 +74,46 @@ base_rows = [
      (KEY_RIGHTCTRL, "Ctrl", 3)],
 ]
 
+base_compact_rows = [
+    [(KEY_ESC, "Esc"), (KEY_F1, "F1"), (KEY_F2, "F2"), (KEY_F3, "F3"),
+     (KEY_F4, "F4"), (KEY_F5, "F5"), (KEY_F6, "F6"), (KEY_F7, "F7"),
+     (KEY_F8, "F8"), (KEY_F9, "F9"), (KEY_F10, "F10"), (KEY_F11, "F11"),
+     (KEY_F12, "F12"), (KEY_INSERT, "Ins", 2), (KEY_DELETE, "Del", 2),
+     (KEY_PAGEUP, "PgUp")],
+
+    [(KEY_GRAVE, "`"), (KEY_1, "1"), (KEY_2, "2"), (KEY_3, "3"), (KEY_4, "4"),
+     (KEY_5, "5"), (KEY_6, "6"), (KEY_7, "7"), (KEY_8, "8"), (KEY_9, "9"),
+     (KEY_0, "0"), (KEY_MINUS, "-"), (KEY_EQUAL, "="), (KEY_BACKSPACE, "⌫", 4),
+     (KEY_PAGEDOWN, "PgDn")],
+
+    [(KEY_TAB, "Tab", 3), (KEY_Q, "Q"), (KEY_W, "W"), (KEY_E, "E"), (KEY_R, "R"),
+     (KEY_T, "T"), (KEY_Y, "Y"), (KEY_U, "U"), (KEY_I, "I"), (KEY_O, "O"),
+     (KEY_P, "P"), (KEY_LEFTBRACE, "["), (KEY_RIGHTBRACE, "]"),
+     (KEY_BACKSLASH, "\\", 3), (KEY_HOME, "Home")],
+
+    [(KEY_CAPSLOCK, "Caps", 4), (KEY_A, "A"), (KEY_S, "S"), (KEY_D, "D"), (KEY_F, "F"),
+     (KEY_G, "G"), (KEY_H, "H"), (KEY_J, "J"), (KEY_K, "K"), (KEY_L, "L"),
+     (KEY_SEMICOLON, ";"), (KEY_APOSTROPHE, "'"), (KEY_ENTER, "Enter", 4),
+     (KEY_END, "End")],
+
+    [(KEY_LEFTSHIFT, "Shift", 5), (KEY_Z, "Z"), (KEY_X, "X"), (KEY_C, "C"), (KEY_V, "V"),
+     (KEY_B, "B"), (KEY_N, "N"), (KEY_M, "M"), (KEY_COMMA, ","), (KEY_DOT, "."),
+     (KEY_SLASH, "/"), (KEY_RIGHTSHIFT, "Shift", 5), (KEY_UP, "↑", 2)],
+
+    [(KEY_LEFTCTRL, "Ctrl", 3), (KEY_LEFTMETA, "OS", 2), (KEY_LEFTALT, "Alt", 3),
+     (KEY_SPACE, "Space", 12), (KEY_RIGHTALT, "Alt", 2), (KEY_RIGHTMETA, "OS", 2),
+     (KEY_RIGHTCTRL, "Ctrl", 2), (KEY_LEFT, "←"), (KEY_RIGHT, "→"), (KEY_DOWN, "↓")],
+]
+
 LAYOUTS = {
-    "Compact": {"fn": False, "sys": False, "nav": False, "num": False},
-    "TKL":     {"fn": True,  "sys": True,  "nav": True,  "num": False},
-    "Full":    {"fn": True,  "sys": True,  "nav": True,  "num": True},
+    "Full":    {"base": base_60_rows,      "fn": True,  "sys": True,  "nav": True,  "num": True},
+    "TKL":     {"base": base_60_rows,      "fn": True,  "sys": True,  "nav": True,  "num": False},
+    "60%":     {"base": base_60_rows,      "fn": False, "sys": False, "nav": False, "num": False},
+    "Compact": {"base": base_compact_rows, "fn": False, "sys": False, "nav": False, "num": False},
+    "Numpad":  {"base": None,              "fn": False, "sys": False, "nav": False, "num": True},
 }
 
-# Maps keys to their shifted symbols, used to update button labels when shift is active
+# Maps keys to their shifted symbols
 shift_dict = {
     KEY_GRAVE: "~", KEY_1: "!", KEY_2: "@", KEY_3: "#", KEY_4: "$",
     KEY_5: "%", KEY_6: "^", KEY_7: "&", KEY_8: "*", KEY_9: "(",
@@ -144,52 +177,100 @@ class VirtualKeyboard(Gtk.Window):
 
         self.header = Gtk.HeaderBar()
         self.header.set_show_close_button(True)
-        self.buttons = []
-        self.modifier_buttons = {}
-        self.row_buttons = []
-        self.color_combobox = Gtk.ComboBoxText()
         self.set_titlebar(self.header)
         self.set_default_icon_name("preferences-desktop-keyboard")
-        self.header.set_decoration_layout(":minimize,maximize,close")
-
-        self.create_settings()
+        self.header.set_decoration_layout(":minimize,close")
 
         self.apply_css()
-        self.button_keys = {}  # maps button widget -> uinput key constant
+        self.modifier_buttons = {}
+        self.row_buttons = []
+        self.button_keys = {}
         self.vbox = None
         self.build_layout(self.current_layout)
 
-    def create_settings(self):
-        self.create_button("☰", self.change_visibility, callbacks=1)
-        self.create_button("+", self.change_opacity, True, 2)
-        self.create_button("-", self.change_opacity, False, 2)
-        self.create_button(f"{self.opacity}")
-        self.color_combobox.append_text("Change Background")
-        self.color_combobox.set_active(0)
-        self.color_combobox.connect("changed", self.change_color)
-        self.color_combobox.set_name("combobox")
-        self.header.add(self.color_combobox)
-        for label, color in self.colors:
-            self.color_combobox.append_text(label)
+        # Right-click menu on the window
+        self.connect("button-press-event", self.on_button_press_event)
 
-        self.layout_combobox = Gtk.ComboBoxText()
-        self.layout_combobox.set_name("combobox")
+    def build_context_menu(self):
+        menu = Gtk.Menu()
+
+        # Layout submenu
+        layout_item = Gtk.MenuItem(label="Layout")
+        layout_sub = Gtk.Menu()
+        layout_group = []
         for name in LAYOUTS:
-            self.layout_combobox.append_text(name)
-        self.layout_combobox.set_active(list(LAYOUTS.keys()).index(self.current_layout))
-        self.layout_combobox.connect("changed", self.change_layout)
-        self.header.add(self.layout_combobox)
+            item = Gtk.RadioMenuItem.new_with_label(layout_group, name)
+            layout_group = item.get_group()
+            if name == self.current_layout:
+                item.set_active(True)
+            item.connect("activate", self.on_menu_layout, name)
+            layout_sub.append(item)
+        layout_item.set_submenu(layout_sub)
+        menu.append(layout_item)
 
-    def change_layout(self, widget):
-        name = self.layout_combobox.get_active_text()
-        if name and name != self.current_layout:
+        # Background color submenu
+        color_item = Gtk.MenuItem(label="Background")
+        color_sub = Gtk.Menu()
+        for label, color in self.colors:
+            item = Gtk.MenuItem(label=label)
+            item.connect("activate", self.on_menu_color, color)
+            color_sub.append(item)
+        color_item.set_submenu(color_sub)
+        menu.append(color_item)
+
+        # Opacity submenu
+        opacity_item = Gtk.MenuItem(label=f"Opacity: {self.opacity}")
+        opacity_sub = Gtk.Menu()
+        for val in ["1.0", "0.95", "0.90", "0.85", "0.80", "0.75", "0.70",
+                    "0.60", "0.50", "0.40", "0.30", "0.20"]:
+            item = Gtk.MenuItem(label=val)
+            item.connect("activate", self.on_menu_opacity, val)
+            opacity_sub.append(item)
+        opacity_item.set_submenu(opacity_sub)
+        menu.append(opacity_item)
+
+        menu.append(Gtk.SeparatorMenuItem())
+
+        wm_item = Gtk.MenuItem(label="Window Menu")
+        wm_item.connect("activate", self.on_menu_window_menu)
+        menu.append(wm_item)
+
+        quit_item = Gtk.MenuItem(label="Quit")
+        quit_item.connect("activate", Gtk.main_quit)
+        menu.append(quit_item)
+
+        menu.show_all()
+        return menu
+
+    def on_button_press_event(self, widget, event):
+        if event.button == 3:  # right click
+            self._last_event = event.copy()
+            menu = self.build_context_menu()
+            menu.popup_at_pointer(event)
+            return True
+        return False
+
+    def on_menu_window_menu(self, item):
+        self.get_window().show_window_menu(self._last_event)
+
+    def on_menu_layout(self, item, name):
+        if item.get_active() and name != self.current_layout:
             self.current_layout = name
             self.build_layout(name)
+
+    def on_menu_color(self, item, color):
+        self.bg_color = color
+        self.text_color = self.get_text_color(self.bg_color)
+        self.outline_color = self.get_outline_color(self.bg_color)
+        self.apply_css()
+
+    def on_menu_opacity(self, item, val):
+        self.opacity = val
+        self.apply_css()
 
     def build_layout(self, name):
         layout = LAYOUTS[name]
 
-        # Tear down existing layout
         if self.vbox is not None:
             self.remove(self.vbox)
             self.vbox.destroy()
@@ -205,16 +286,19 @@ class VirtualKeyboard(Gtk.Window):
             g.set_name("grid")
             return g
 
-        grid_main = make_grid()
+        grid_main = make_grid() if layout["base"] else None
         hbox_main = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=HBOX_SPACING)
-        hbox_main.pack_start(grid_main, True, True, 0)
+        if grid_main:
+            hbox_main.pack_start(grid_main, True, True, 0)
 
         self.vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=VBOX_SPACING)
-
+        self.vbox.set_margin_start(8)
+        self.vbox.set_margin_end(8)
+        self.vbox.set_margin_bottom(8)
         # Collect all keys for device (always from all row groups regardless of layout)
-        all_row_groups = [fn_rows, sys_rows, base_rows, navigation_rows, numpad_rows]
+        all_row_groups = [fn_rows, sys_rows, base_60_rows, base_compact_rows, navigation_rows, numpad_rows]
         all_keys = set()
-        self.key_labels = {}  # key constant -> default label
+        self.key_labels = {}
         for group in all_row_groups:
             for row in group:
                 for entry in row:
@@ -224,7 +308,6 @@ class VirtualKeyboard(Gtk.Window):
         if not hasattr(self, 'device'):
             self.device = Device(all_keys)
 
-        # Build top hbox if fn row is included
         if layout["fn"]:
             grid_fn = make_grid()
             grid_sys = make_grid()
@@ -243,12 +326,12 @@ class VirtualKeyboard(Gtk.Window):
 
         if layout["num"]:
             grid_num = make_grid()
-            hbox_main.pack_start(grid_num, False, False, 0)
+            expand = not layout["base"] and not layout["nav"]
+            hbox_main.pack_start(grid_num, expand, expand, 0)
 
         self.vbox.pack_start(hbox_main, True, True, 0)
         self.add(self.vbox)
 
-        # Populate grids, saving reference buttons for SizeGroups
         ref_fn = ref_main = ref_sys = ref_nav = None
 
         if layout["fn"]:
@@ -267,10 +350,11 @@ class VirtualKeyboard(Gtk.Window):
                 for row_index, row in enumerate(fn_pad_rows):
                     self.create_row(grid_fn_pad, row_index, row)
 
-        i = len(self.row_buttons)
-        for row_index, row in enumerate(base_rows):
-            self.create_row(grid_main, row_index, row)
-        ref_main = self.row_buttons[i]
+        if layout["base"]:
+            i = len(self.row_buttons)
+            for row_index, row in enumerate(layout["base"]):
+                self.create_row(grid_main, row_index, row)
+            ref_main = self.row_buttons[i]
 
         if layout["nav"]:
             i = len(self.row_buttons)
@@ -282,9 +366,10 @@ class VirtualKeyboard(Gtk.Window):
             for row_index, row in enumerate(numpad_rows):
                 self.create_row(grid_num, row_index, row)
 
-            sg_pad = Gtk.SizeGroup(mode=Gtk.SizeGroupMode.HORIZONTAL)
-            sg_pad.add_widget(grid_fn_pad)
-            sg_pad.add_widget(grid_num)
+            if layout["fn"]:
+                sg_pad = Gtk.SizeGroup(mode=Gtk.SizeGroupMode.HORIZONTAL)
+                sg_pad.add_widget(grid_fn_pad)
+                sg_pad.add_widget(grid_num)
 
         if ref_fn and ref_main:
             sg_main = Gtk.SizeGroup(mode=Gtk.SizeGroupMode.HORIZONTAL)
@@ -296,13 +381,11 @@ class VirtualKeyboard(Gtk.Window):
             sg_side.add_widget(ref_sys)
             sg_side.add_widget(ref_nav)
 
-        # Initialize CapsLock & Numlock visual state
         self.sync_capslock()
         self.sync_numlock()
 
         self.vbox.show_all()
 
-        # Restore saved size for this layout, or shrink to fit
         w, h = self.layout_sizes.get(name, (0, 0))
         if w and h:
             self.resize(w, h)
@@ -321,48 +404,6 @@ class VirtualKeyboard(Gtk.Window):
         output = subprocess.check_output("xset q", shell=True).decode()
         return "Num Lock:    on" in output
 
-    def create_button(self, label_="", callback=None, callback2=None, callbacks=0):
-        button = Gtk.Button(label=label_)
-        button.set_name("headbar-button")
-        if callbacks == 1:
-            button.connect("clicked", callback)
-        elif callbacks == 2:
-            button.connect("clicked", callback, callback2)
-        if label_ == self.opacity:
-            self.opacity_btn = button
-            self.opacity_btn.set_tooltip_text("opacity")
-        self.header.add(button)
-        self.buttons.append(button)
-
-    def change_visibility(self, widget=None):
-        for button in self.buttons:
-            if button.get_label() != "☰":
-                button.set_visible(not button.get_visible())
-        self.color_combobox.set_visible(not self.color_combobox.get_visible())
-        self.layout_combobox.set_visible(not self.layout_combobox.get_visible())
-
-    def change_color(self, widget):
-        label = self.color_combobox.get_active_text()
-        for label_, color_ in self.colors:
-            if label_ == label:
-                self.bg_color = color_
-        self.text_color = self.get_text_color(self.bg_color)
-        self.outline_color = self.get_outline_color(self.bg_color)
-        self.apply_css()
-
-    def change_opacity(self, widget, boolean):
-        if boolean:
-            self.opacity = str(round(min(1.0, float(self.opacity) + 0.01), 2))
-        else:
-            self.opacity = str(round(max(0.0, float(self.opacity) - 0.01), 2))
-        self.opacity_btn.set_label(f"{self.opacity}")
-        self.apply_css()
-
-    def get_default_font_size(self):
-        style = self.get_style_context()
-        font = style.get_property("font", Gtk.StateFlags.NORMAL)
-        return font.get_size() / 1024  # Pango uses 1024 units per point
-
     def get_text_color(self, rgb_string):
         r, g, b = [int(x) for x in rgb_string.split(",")]
         luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
@@ -376,20 +417,20 @@ class VirtualKeyboard(Gtk.Window):
 
     def apply_css(self):
         provider = Gtk.CssProvider()
-        default = self.get_default_font_size()
-        small = round(default * 0.8, 1)
+        default_font = self.get_style_context().get_property("font", Gtk.StateFlags.NORMAL)
+        default_size = default_font.get_size() / 1024
+        small = round(default_size * 0.8, 1)
         css = f"""
         headerbar {{
             background-color: rgba({self.bg_color}, {self.opacity});
-            border: 0px; box-shadow: none;
+            border: 0px; box-shadow: none; min-width: 0px; min-height: 0px; padding: 0px;
         }}
-        headerbar button {{ min-width: 10px; padding: 0px; border: 0px; margin: 0px; }}
-        headerbar .titlebutton {{ min-width: 50px; min-height: 40px }}
+        headerbar button {{ min-width: 0px; min-height: 0px; padding: 2px; border: 0px; margin: 0px; }}
+        headerbar .titlebutton {{ min-width: 16px; min-height: 16px; }}
         headerbar button label {{ color: {self.text_color}; }}
-        #headbar-button, #combobox button.combo {{ background-image: none; }}
         #toplevel {{ background-color: rgba({self.bg_color}, {self.opacity}); }}
         #grid button label {{ color: {self.text_color}; }}
-        #grid button {{ border: 1px solid {self.outline_color}; background-image: none; padding: 0px; margin: 0px; }}
+        #grid button {{ border: 1px solid {self.outline_color}; background-image: none; padding: 0px; margin: 0px; min-width: 0px; min-height: 0px; }}
         button {{ background-color: transparent; color: {self.text_color}; }}
         #grid button:hover {{ border: 1px solid #00CACB; }}
         #grid button.pressed, #grid button.pressed:hover {{ border: 1px solid {self.text_color}; }}
@@ -398,7 +439,6 @@ class VirtualKeyboard(Gtk.Window):
         #grid button:active {{ background-color: {self.text_color}; }}
         #grid button:active label {{ color: rgba({self.bg_color}, {self.opacity}); }}
         tooltip {{ color: white; padding: 5px; }}
-        #combobox button.combo {{ color: {self.text_color}; padding: 5px; }}
         #grid button.small-key label {{ font-size: {small}pt; }}
         #grid button.numlock-label label {{ font-size: {small}pt; }}
         """
@@ -428,9 +468,9 @@ class VirtualKeyboard(Gtk.Window):
             button = Gtk.Button(label=label)
             if len(label) > 1:  # small font for multi-character labels
                 button.get_style_context().add_class('small-key')
-            button.connect("pressed", self.on_button_press, key)
-            button.connect("released", self.on_button_release)
-            button.connect("leave-notify-event", self.on_button_release)  # release if finger drags off
+            button.connect("pressed", self.on_key_press, key)
+            button.connect("released", self.on_key_release)
+            button.connect("leave-notify-event", self.on_key_release)
             self.row_buttons.append(button)
             self.button_keys[button] = key
             if key in self.modifiers:
@@ -459,7 +499,6 @@ class VirtualKeyboard(Gtk.Window):
     def update_modifier(self, key_event, state):
         old_state = self.modifiers[key_event]
         self.modifiers[key_event] = state
-        # Update button visual state
         ctx = self.modifier_buttons[key_event].get_style_context()
         ctx.remove_class('pressed')
         ctx.remove_class('locked')
@@ -467,10 +506,8 @@ class VirtualKeyboard(Gtk.Window):
             ctx.add_class('pressed')
         elif state == MOD_LOCKED:
             ctx.add_class('locked')
-            # Hold key down at device level when locking
             if key_event not in (KEY_CAPSLOCK, KEY_NUMLOCK):
                 self.device.emit(key_event, 1)
-        # Release key at device level when unlocking
         if old_state == MOD_LOCKED and state == MOD_OFF:
             if key_event not in (KEY_CAPSLOCK, KEY_NUMLOCK):
                 self.device.emit(key_event, 0)
@@ -481,7 +518,7 @@ class VirtualKeyboard(Gtk.Window):
             self.update_modifier(KEY_CAPSLOCK, state)
         else:
             self.modifiers[KEY_CAPSLOCK] = state
-        return False  # safe to use as GLib timeout callback
+        return False
 
     def sync_numlock(self):
         on = self.get_numlock_state()
@@ -491,10 +528,9 @@ class VirtualKeyboard(Gtk.Window):
             self.update_label_numlock(not on)
         else:
             self.modifiers[KEY_NUMLOCK] = state
-        return False  # safe to use as GLib timeout callback
+        return False
 
-    def on_button_press(self, widget, key_event):
-        # CapsLock and Numlock toggle at OS level — emit and sync after a short delay
+    def on_key_press(self, widget, key_event):
         if key_event == KEY_CAPSLOCK:
             self.device.emit(KEY_CAPSLOCK, 1)
             self.device.emit(KEY_CAPSLOCK, 0)
@@ -506,13 +542,11 @@ class VirtualKeyboard(Gtk.Window):
             GLib.timeout_add(50, self.sync_numlock)
             return
 
-        # Modifier keys cycle: off -> on -> locked -> off
         if key_event in self.modifiers:
             current = self.modifiers[key_event]
             next_state = [MOD_ON, MOD_LOCKED, MOD_OFF][current]
             self.update_modifier(key_event, next_state)
 
-            # Prevent both shifts being active at once
             if self.modifiers[KEY_LEFTSHIFT] and self.modifiers[KEY_RIGHTSHIFT]:
                 self.update_modifier(KEY_LEFTSHIFT, MOD_OFF)
                 self.update_modifier(KEY_RIGHTSHIFT, MOD_OFF)
@@ -521,15 +555,13 @@ class VirtualKeyboard(Gtk.Window):
             self.update_label_shift(bool(shift_active))
             return
 
-        # Press any MOD_ON modifiers, then hold the key down
-        # (MOD_LOCKED modifiers are already held at device level)
         for mod_key, state in self.modifiers.items():
             if state == MOD_ON and mod_key not in (KEY_CAPSLOCK, KEY_NUMLOCK):
                 self.device.emit(mod_key, 1)
         self.device.emit(key_event, 1)
         self.pressed_key = key_event
 
-    def on_button_release(self, widget, *args):
+    def on_key_release(self, widget, *args):
         if not hasattr(self, 'pressed_key'):
             return
         key_event = self.pressed_key
@@ -537,7 +569,6 @@ class VirtualKeyboard(Gtk.Window):
 
         self.device.emit(key_event, 0)
 
-        # Release and clear MOD_ON modifiers
         for mod_key, state in self.modifiers.items():
             if state == MOD_ON and mod_key not in (KEY_CAPSLOCK, KEY_NUMLOCK):
                 self.device.emit(mod_key, 0)
@@ -553,8 +584,8 @@ class VirtualKeyboard(Gtk.Window):
         try:
             if os.path.exists(self.CONFIG_FILE):
                 self.config.read(self.CONFIG_FILE)
-                self.bg_color = self.config.get("DEFAULT", "bg_color")
-                self.opacity = self.config.get("DEFAULT", "opacity")
+                self.bg_color = self.config.get("DEFAULT", "bg_color", fallback="0,0,0")
+                self.opacity = self.config.get("DEFAULT", "opacity", fallback="0.90")
                 self.current_layout = self.config.get("DEFAULT", "layout", fallback="Full")
                 for name in LAYOUTS:
                     w = self.config.getint("SIZES", f"{name}_width", fallback=0)
@@ -586,5 +617,4 @@ if __name__ == "__main__":
     win.connect("destroy", lambda w: win.save_settings())
     win.show_all()
     win.connect("configure-event", win.on_resize)
-    win.change_visibility()
     Gtk.main()
