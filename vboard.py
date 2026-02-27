@@ -159,7 +159,6 @@ class VirtualKeyboard(Gtk.Window):
             KEY_LEFTSHIFT: MOD_OFF, KEY_RIGHTSHIFT: MOD_OFF,
             KEY_LEFTCTRL: MOD_OFF,  KEY_RIGHTCTRL: MOD_OFF,
             KEY_LEFTALT: MOD_OFF,   KEY_RIGHTALT: MOD_OFF,
-            KEY_LEFTMETA: MOD_OFF,  KEY_RIGHTMETA: MOD_OFF,
             KEY_CAPSLOCK: MOD_OFF,
             KEY_NUMLOCK: MOD_OFF,
         }
