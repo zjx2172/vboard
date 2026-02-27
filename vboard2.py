@@ -113,7 +113,9 @@ LAYOUTS = {
     "Numpad":  {"base": None,              "fn": False, "sys": False, "nav": False, "num": True},
 }
 
-# Maps keys to their shifted symbols
+RESIZE_GRIP = 6  # pixels from edge that trigger resize
+
+
 shift_dict = {
     KEY_GRAVE: "~", KEY_1: "!", KEY_2: "@", KEY_3: "#", KEY_4: "$",
     KEY_5: "%", KEY_6: "^", KEY_7: "&", KEY_8: "*", KEY_9: "(",
@@ -145,10 +147,10 @@ class VirtualKeyboard(Gtk.Window):
 
         # No titlebar — KDE still provides resize handles and window menu on border right-click
         self.set_decorated(False)
-        self.set_title("VBoard 2")
+        self.set_title("VBoard2")
         self.set_default_icon_name("preferences-desktop-keyboard")
 
-        self.CONFIG_DIR = os.path.expanduser("~/.config/vboard")
+        self.CONFIG_DIR = os.path.expanduser("~/.config/vboard2")
         self.CONFIG_FILE = os.path.join(self.CONFIG_DIR, "settings.conf")
         self.config = configparser.ConfigParser()
 
@@ -187,6 +189,8 @@ class VirtualKeyboard(Gtk.Window):
         self.build_layout(self.current_layout)
 
         self.connect("button-press-event", self.on_button_press_event)
+        self.connect("motion-notify-event", self.on_motion_notify_event)
+        self.add_events(0x4)  # GDK_POINTER_MOTION_MASK
 
     def build_context_menu(self):
         menu = Gtk.Menu()
@@ -239,8 +243,50 @@ class VirtualKeyboard(Gtk.Window):
         menu.show_all()
         return menu
 
+    def get_resize_edge(self, x, y):
+        """Return a Gdk.WindowEdge if x,y is in a resize zone, else None."""
+        from gi.repository import Gdk
+        w, h = self.get_size()
+        g = RESIZE_GRIP
+        left   = x < g
+        right  = x > w - g
+        top    = y < g
+        bottom = y > h - g
+        if top    and left:  return Gdk.WindowEdge.NORTH_WEST
+        if top    and right: return Gdk.WindowEdge.NORTH_EAST
+        if bottom and left:  return Gdk.WindowEdge.SOUTH_WEST
+        if bottom and right: return Gdk.WindowEdge.SOUTH_EAST
+        if top:              return Gdk.WindowEdge.NORTH
+        if bottom:           return Gdk.WindowEdge.SOUTH
+        if left:             return Gdk.WindowEdge.WEST
+        if right:            return Gdk.WindowEdge.EAST
+        return None
+
+    def on_motion_notify_event(self, widget, event):
+        from gi.repository import Gdk
+        edge = self.get_resize_edge(event.x, event.y)
+        cursors = {
+            Gdk.WindowEdge.NORTH_WEST: Gdk.CursorType.TOP_LEFT_CORNER,
+            Gdk.WindowEdge.NORTH_EAST: Gdk.CursorType.TOP_RIGHT_CORNER,
+            Gdk.WindowEdge.SOUTH_WEST: Gdk.CursorType.BOTTOM_LEFT_CORNER,
+            Gdk.WindowEdge.SOUTH_EAST: Gdk.CursorType.BOTTOM_RIGHT_CORNER,
+            Gdk.WindowEdge.NORTH:      Gdk.CursorType.TOP_SIDE,
+            Gdk.WindowEdge.SOUTH:      Gdk.CursorType.BOTTOM_SIDE,
+            Gdk.WindowEdge.WEST:       Gdk.CursorType.LEFT_SIDE,
+            Gdk.WindowEdge.EAST:       Gdk.CursorType.RIGHT_SIDE,
+        }
+        cursor_type = cursors.get(edge, Gdk.CursorType.ARROW)
+        cursor = Gdk.Cursor.new_for_display(Gdk.Display.get_default(), cursor_type)
+        self.get_window().set_cursor(cursor)
+
     def on_button_press_event(self, widget, event):
-        if event.button == 2:  # middle-click to drag
+        if event.button == 1:  # left-click — resize if on edge
+            edge = self.get_resize_edge(event.x, event.y)
+            if edge is not None:
+                self.get_window().begin_resize_drag(
+                    edge, event.button, int(event.x_root), int(event.y_root), event.time)
+                return True
+        if event.button == 2:  # middle-click — drag window
             self.get_window().begin_move_drag(
                 event.button, int(event.x_root), int(event.y_root), event.time)
             return True
